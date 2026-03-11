@@ -1,4 +1,11 @@
-"use client";
+import { writeFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const outPath = join(__dirname, "../src/app/(app)/tools/liquidations/page.tsx");
+
+const content = `"use client";
 
 import { useEffect, useCallback, useState } from "react";
 import { AlertTriangle, TrendingUp, Activity, Clock, Calculator, RefreshCw } from "lucide-react";
@@ -23,7 +30,7 @@ function useCountdown(targetMs: number) {
       const h = Math.floor(diff / 3_600_000);
       const m = Math.floor((diff % 3_600_000) / 60_000);
       const s = Math.floor((diff % 60_000) / 1_000);
-      setRemaining(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`);
+      setRemaining(\`\${String(h).padStart(2,"0")}:\${String(m).padStart(2,"0")}:\${String(s).padStart(2,"0")}\`);
     }
     update();
     const id = setInterval(update, 1000);
@@ -37,9 +44,9 @@ function StatCard({ label, value, sub, accent, Icon, extra }: {
   Icon: React.ElementType; extra?: React.ReactNode;
 }) {
   return (
-    <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderLeft: `3px solid ${accent}`, borderRadius: 4, padding: 16 }}>
+    <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderLeft: \`3px solid \${accent}\`, borderRadius: 4, padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <div style={{ width: 30, height: 30, borderRadius: "50%", background: `${accent}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <div style={{ width: 30, height: 30, borderRadius: "50%", background: \`\${accent}20\`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon size={14} style={{ color: accent }} />
         </div>
         <span style={{ color: "#8892A4", fontSize: "0.65rem", textTransform: "uppercase" as const, letterSpacing: "0.08em", fontWeight: 600 }}>{label}</span>
@@ -58,8 +65,8 @@ function FundingCard({ coin }: { coin: CoinData }) {
   return (
     <StatCard
       label="Funding Rate (8H)"
-      value={`${isPositive ? "+" : ""}${coin.fundingRate.toFixed(4)}%`}
-      sub={`Next funding: ${countdown}`}
+      value={\`\${isPositive ? "+" : ""}\${coin.fundingRate.toFixed(4)}%\`}
+      sub={\`Next funding: \${countdown}\`}
       accent={color}
       Icon={Clock}
     />
@@ -120,8 +127,8 @@ function LiqHeatmap({ coin }: { coin: CoinData }) {
             const bw = Math.max(4, (level.size / maxSize) * BAR_MAX_W);
             const op = levOpacity[level.leverage] ?? 0.7;
             return (
-              <div key={`s-${level.leverage}`} style={{ position: "absolute", top: y - 8, left: 0, width: bw, height: 16, background: `rgba(255,59,92,${op})`, borderRadius: "0 2px 2px 0", cursor: "pointer", display: "flex", alignItems: "center", paddingLeft: 6 }}
-                onMouseEnter={() => setHovered({ label: `${level.leverage}x SHORT LIQ`, price: level.price, size: level.size, type: "SHORT" })}>
+              <div key={\`s-\${level.leverage}\`} style={{ position: "absolute", top: y - 8, left: 0, width: bw, height: 16, background: \`rgba(255,59,92,\${op})\`, borderRadius: "0 2px 2px 0", cursor: "pointer", display: "flex", alignItems: "center", paddingLeft: 6 }}
+                onMouseEnter={() => setHovered({ label: \`\${level.leverage}x SHORT LIQ\`, price: level.price, size: level.size, type: "SHORT" })}>
                 <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "0.6rem", fontWeight: 600, whiteSpace: "nowrap" as const }}>{level.leverage}x — {fmtPrice(level.price)}</span>
               </div>
             );
@@ -132,8 +139,8 @@ function LiqHeatmap({ coin }: { coin: CoinData }) {
             const bw = Math.max(4, (level.size / maxSize) * BAR_MAX_W);
             const op = levOpacity[level.leverage] ?? 0.7;
             return (
-              <div key={`l-${level.leverage}`} style={{ position: "absolute", top: y - 8, left: 0, width: bw, height: 16, background: `rgba(0,200,150,${op})`, borderRadius: "0 2px 2px 0", cursor: "pointer", display: "flex", alignItems: "center", paddingLeft: 6 }}
-                onMouseEnter={() => setHovered({ label: `${level.leverage}x LONG LIQ`, price: level.price, size: level.size, type: "LONG" })}>
+              <div key={\`l-\${level.leverage}\`} style={{ position: "absolute", top: y - 8, left: 0, width: bw, height: 16, background: \`rgba(0,200,150,\${op})\`, borderRadius: "0 2px 2px 0", cursor: "pointer", display: "flex", alignItems: "center", paddingLeft: 6 }}
+                onMouseEnter={() => setHovered({ label: \`\${level.leverage}x LONG LIQ\`, price: level.price, size: level.size, type: "LONG" })}>
                 <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "0.6rem", fontWeight: 600, whiteSpace: "nowrap" as const }}>{level.leverage}x — {fmtPrice(level.price)}</span>
               </div>
             );
@@ -151,7 +158,7 @@ function LiqHeatmap({ coin }: { coin: CoinData }) {
           </div>
         </div>
         {hovered && (
-          <div style={{ position: "fixed", left: mousePos.x + AXIS_W + 16, top: mousePos.y, background: "#0C1018", border: `1px solid ${hovered.type === "LONG" ? "#00C896" : "#FF3B5C"}`, borderRadius: 4, padding: "8px 12px", fontSize: "0.78rem", zIndex: 100, pointerEvents: "none", whiteSpace: "nowrap" as const }}>
+          <div style={{ position: "fixed", left: mousePos.x + AXIS_W + 16, top: mousePos.y, background: "#0C1018", border: \`1px solid \${hovered.type === "LONG" ? "#00C896" : "#FF3B5C"}\`, borderRadius: 4, padding: "8px 12px", fontSize: "0.78rem", zIndex: 100, pointerEvents: "none", whiteSpace: "nowrap" as const }}>
             <div style={{ color: hovered.type === "LONG" ? "#00C896" : "#FF3B5C", fontWeight: 700, marginBottom: 4 }}>{hovered.label}</div>
             <div style={{ color: "#E8ECF4" }}>Price: {fmtPrice(hovered.price)}</div>
             <div style={{ color: "#8892A4" }}>Est. Size: {fmtLarge(hovered.size)}</div>
@@ -191,7 +198,7 @@ function LiqTable({ coin }: { coin: CoinData }) {
               const isEven = i % 2 === 0;
               const r = risk(row.distPct);
               return (
-                <tr key={`${row.type}-${row.leverage}`} style={{ background: isEven ? "#0C1018" : "#090D15", borderBottom: "1px solid #1C223440" }}
+                <tr key={\`\${row.type}-\${row.leverage}\`} style={{ background: isEven ? "#0C1018" : "#090D15", borderBottom: "1px solid #1C223440" }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = "#131B2E"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = isEven ? "#0C1018" : "#090D15"; }}>
                   <td style={{ padding: "9px 14px" }}>
@@ -202,7 +209,7 @@ function LiqTable({ coin }: { coin: CoinData }) {
                   <td style={{ padding: "9px 14px", color: row.distPct < 3 ? "#FF3B5C" : row.distPct < 8 ? "#F59E0B" : "#8892A4", fontWeight: 600 }}>{row.distPct.toFixed(2)}%</td>
                   <td style={{ padding: "9px 14px", color: "#8892A4" }}>{fmtLarge(row.size)}</td>
                   <td style={{ padding: "9px 14px" }}>
-                    <span style={{ background: `${r.color}15`, color: r.color, border: `1px solid ${r.color}30`, borderRadius: 3, padding: "2px 7px", fontSize: "0.65rem", fontWeight: 600 }}>{r.label}</span>
+                    <span style={{ background: \`\${r.color}15\`, color: r.color, border: \`1px solid \${r.color}30\`, borderRadius: 3, padding: "2px 7px", fontSize: "0.65rem", fontWeight: 600 }}>{r.label}</span>
                   </td>
                 </tr>
               );
@@ -245,7 +252,7 @@ function LiqCalculator({ markPrice }: { markPrice: number }) {
           <label style={{ display: "block", color: "#8892A4", fontSize: "0.72rem", textTransform: "uppercase" as const, letterSpacing: "0.05em", marginBottom: 6 }}>Position Side</label>
           <div style={{ display: "flex", gap: 6 }}>
             {(["LONG","SHORT"] as const).map((s) => (
-              <button key={s} onClick={() => setSide(s)} style={{ flex: 1, padding: "8px", borderRadius: 3, border: `1px solid ${side===s?(s==="LONG"?"#00C896":"#FF3B5C"):"#1C2236"}`, background: side===s?(s==="LONG"?"rgba(0,200,150,0.15)":"rgba(255,59,92,0.15)"):"#06080F", color: side===s?(s==="LONG"?"#00C896":"#FF3B5C"):"#8892A4", fontWeight: 700, fontSize: "0.78rem", cursor: "pointer" }}>{s}</button>
+              <button key={s} onClick={() => setSide(s)} style={{ flex: 1, padding: "8px", borderRadius: 3, border: \`1px solid \${side===s?(s==="LONG"?"#00C896":"#FF3B5C"):"#1C2236"}\`, background: side===s?(s==="LONG"?"rgba(0,200,150,0.15)":"rgba(255,59,92,0.15)"):"#06080F", color: side===s?(s==="LONG"?"#00C896":"#FF3B5C"):"#8892A4", fontWeight: 700, fontSize: "0.78rem", cursor: "pointer" }}>{s}</button>
             ))}
           </div>
         </div>
@@ -256,7 +263,7 @@ function LiqCalculator({ markPrice }: { markPrice: number }) {
           <input type="range" min={1} max={125} value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value))} style={{ width: "100%", accentColor: "#0066FF" }} />
           <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
             {[5,10,20,50,100].map((lev) => (
-              <button key={lev} onClick={() => setLeverage(lev)} style={{ flex: 1, padding: "3px", borderRadius: 2, border: `1px solid ${leverage===lev?"#0066FF":"#1C2236"}`, background: leverage===lev?"rgba(0,102,255,0.15)":"#06080F", color: leverage===lev?"#0066FF":"#8892A4", fontSize: "0.65rem", fontWeight: 600, cursor: "pointer" }}>{lev}x</button>
+              <button key={lev} onClick={() => setLeverage(lev)} style={{ flex: 1, padding: "3px", borderRadius: 2, border: \`1px solid \${leverage===lev?"#0066FF":"#1C2236"}\`, background: leverage===lev?"rgba(0,102,255,0.15)":"#06080F", color: leverage===lev?"#0066FF":"#8892A4", fontSize: "0.65rem", fontWeight: 600, cursor: "pointer" }}>{lev}x</button>
             ))}
           </div>
         </div>
@@ -276,17 +283,17 @@ function LiqCalculator({ markPrice }: { markPrice: number }) {
             <span style={{ color: riskColor, fontSize: "0.72rem", fontWeight: 700 }}>{riskPct>70?"HIGH RISK":riskPct>40?"MEDIUM RISK":"LOW RISK"}</span>
           </div>
           <div style={{ height: 6, background: "#1C2236", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${riskPct}%`, background: `linear-gradient(90deg,#00C896,${riskColor})`, borderRadius: 3, transition: "width 0.2s ease" }} />
+            <div style={{ height: "100%", width: \`\${riskPct}%\`, background: \`linear-gradient(90deg,#00C896,\${riskColor})\`, borderRadius: 3, transition: "width 0.2s ease" }} />
           </div>
         </div>
         <div>
           <div style={{ color: "#8892A4", fontSize: "0.72rem", marginBottom: 8 }}>Price visualization</div>
           <div style={{ position: "relative", height: 24, background: "#1C2236", borderRadius: 3 }}>
-            <div style={{ position: "absolute", top: 0, bottom: 0, left: side==="LONG"?`${barLiqPos}%`:"50%", right: side==="LONG"?"50%":`${100-barLiqPos}%`, background: "rgba(0,200,150,0.3)", borderRadius: 3 }} />
+            <div style={{ position: "absolute", top: 0, bottom: 0, left: side==="LONG"?\`\${barLiqPos}%\`:"50%", right: side==="LONG"?"50%":\`\${100-barLiqPos}%\`, background: "rgba(0,200,150,0.3)", borderRadius: 3 }} />
             <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 2, background: "#0066FF", transform: "translateX(-50%)" }}>
               <span style={{ position: "absolute", bottom: -16, left: "50%", transform: "translateX(-50%)", fontSize: "0.55rem", color: "#0066FF", whiteSpace: "nowrap" as const }}>Entry</span>
             </div>
-            <div style={{ position: "absolute", top: 0, bottom: 0, left: `${barLiqPos}%`, width: 2, background: "#FF3B5C", transform: "translateX(-50%)" }}>
+            <div style={{ position: "absolute", top: 0, bottom: 0, left: \`\${barLiqPos}%\`, width: 2, background: "#FF3B5C", transform: "translateX(-50%)" }}>
               <span style={{ position: "absolute", bottom: -16, left: "50%", transform: "translateX(-50%)", fontSize: "0.55rem", color: "#FF3B5C", whiteSpace: "nowrap" as const }}>Liq</span>
             </div>
           </div>
@@ -303,16 +310,16 @@ function MarketBiasCard({ coin }: { coin: CoinData }) {
   let icon: string, title: string, desc: string, color: string, bg: string;
   if (isLongHeavy) {
     icon="⚠️"; title="LONG HEAVY MARKET"; color="#FF3B5C"; bg="rgba(255,59,92,0.05)";
-    desc=`Market is heavily long (${coin.longRatio.toFixed(1)}%) with positive funding (+${coin.fundingRate.toFixed(4)}%). High risk of long squeeze if price drops.`;
+    desc=\`Market is heavily long (\${coin.longRatio.toFixed(1)}%) with positive funding (+\${coin.fundingRate.toFixed(4)}%). High risk of long squeeze if price drops.\`;
   } else if (isShortHeavy) {
     icon="⚠️"; title="SHORT HEAVY MARKET"; color="#00C896"; bg="rgba(0,200,150,0.05)";
-    desc=`Market is heavily short (${coin.shortRatio.toFixed(1)}%) with negative funding (${coin.fundingRate.toFixed(4)}%). Potential short squeeze if price breaks up.`;
+    desc=\`Market is heavily short (\${coin.shortRatio.toFixed(1)}%) with negative funding (\${coin.fundingRate.toFixed(4)}%). Potential short squeeze if price breaks up.\`;
   } else {
     icon="✓"; title="BALANCED MARKET"; color="#0066FF"; bg="rgba(0,102,255,0.05)";
-    desc=`Long/short ratio is balanced (${coin.longRatio.toFixed(1)}% longs / ${coin.shortRatio.toFixed(1)}% shorts). No immediate squeeze risk.`;
+    desc=\`Long/short ratio is balanced (\${coin.longRatio.toFixed(1)}% longs / \${coin.shortRatio.toFixed(1)}% shorts). No immediate squeeze risk.\`;
   }
   return (
-    <div style={{ background: bg, border: `1px solid ${color}30`, borderLeft: `3px solid ${color}`, borderRadius: 4, padding: 16, marginBottom: 20 }}>
+    <div style={{ background: bg, border: \`1px solid \${color}30\`, borderLeft: \`3px solid \${color}\`, borderRadius: 4, padding: 16, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <span style={{ fontSize: "1.1rem" }}>{icon}</span>
         <span style={{ color, fontWeight: 700, fontSize: "0.88rem" }}>{title}</span>
@@ -354,14 +361,14 @@ function AllCoinsOverview({ coins }: { coins: CoinData[] }) {
                   <td style={{ padding: "10px 14px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <div style={{ width: 48, height: 5, background: "#1C2236", borderRadius: 2, overflow: "hidden", flexShrink: 0 }}>
-                        <div style={{ height: "100%", width: `${coin.longRatio}%`, background: "#00C896" }} />
+                        <div style={{ height: "100%", width: \`\${coin.longRatio}%\`, background: "#00C896" }} />
                       </div>
                       <span style={{ color: "#00C896", fontWeight: 600 }}>{coin.longRatio.toFixed(1)}%</span>
                     </div>
                   </td>
                   <td style={{ padding: "10px 14px", color: "#FF3B5C", fontWeight: 600 }}>{coin.shortRatio.toFixed(1)}%</td>
                   <td style={{ padding: "10px 14px" }}>
-                    <span style={{ background: `${bColor}15`, color: bColor, border: `1px solid ${bColor}30`, borderRadius: 3, padding: "2px 7px", fontSize: "0.65rem", fontWeight: 600 }}>{bLabel}</span>
+                    <span style={{ background: \`\${bColor}15\`, color: bColor, border: \`1px solid \${bColor}30\`, borderRadius: 3, padding: "2px 7px", fontSize: "0.65rem", fontWeight: 600 }}>{bLabel}</span>
                   </td>
                 </tr>
               );
@@ -448,8 +455,8 @@ export default function LiquidationsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 16, marginBottom: 20 }}>
             <StatCard label="Open Interest" value={fmtLarge(selectedCoin.openInterestUSD)} accent="#0066FF" Icon={Activity} />
             <FundingCard coin={selectedCoin} />
-            <StatCard label="Long Ratio" value={`${selectedCoin.longRatio.toFixed(1)}%`} accent="#00C896" Icon={TrendingUp}
-              extra={<div style={{ marginTop: 8, height: 5, background: "#1C2236", borderRadius: 2, overflow: "hidden" }}><div style={{ height: "100%", width: `${selectedCoin.longRatio}%`, background: "linear-gradient(90deg,#00C896,#FF3B5C)" }} /></div>}
+            <StatCard label="Long Ratio" value={\`\${selectedCoin.longRatio.toFixed(1)}%\`} accent="#00C896" Icon={TrendingUp}
+              extra={<div style={{ marginTop: 8, height: 5, background: "#1C2236", borderRadius: 2, overflow: "hidden" }}><div style={{ height: "100%", width: \`\${selectedCoin.longRatio}%\`, background: "linear-gradient(90deg,#00C896,#FF3B5C)" }} /></div>}
             />
             <StatCard label="Mark Price" value={fmtPrice(selectedCoin.markPrice)} accent="#F59E0B" Icon={Activity} />
           </div>
@@ -466,7 +473,12 @@ export default function LiquidationsPage() {
 
       {!loading && data?.coins && data.coins.length > 0 && <AllCoinsOverview coins={data.coins} />}
 
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      <style>{\`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}\`}</style>
     </div>
   );
 }
+`;
+
+writeFileSync(outPath, content, "utf8");
+console.log("Written:", outPath);
+console.log("Lines:", content.split("\n").length);
