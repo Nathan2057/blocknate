@@ -2,26 +2,146 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #06080F;
+  --surface: #0C1018;
+  --header: #080C14;
+  --accent: #0066FF;
+  --border: #1C2236;
+  --text: #FFFFFF;
+  --muted: #8892A4;
+  --positive: #00C896;
+  --negative: #FF3B5C;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #06080F;
+  color: #FFFFFF;
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  background-image: radial-gradient(circle, #1C2236 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-attachment: fixed;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #080C14; }
+::-webkit-scrollbar-thumb { background: #1C2236; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #0066FF; }
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-animate {
+  animation: ticker-scroll 40s linear infinite;
+  display: flex;
+  width: max-content;
+}
+.ticker-animate:hover { animation-play-state: paused; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #1C2236 25%, #242d47 50%, #1C2236 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 3px;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+.pulse-ring { animation: pulse-ring 1.5s ease-out infinite; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+.pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 6px 1px rgba(0,102,255,0.5); }
+  50% { box-shadow: 0 0 14px 3px rgba(0,102,255,0.9); }
+}
+.glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
+
+@keyframes float-up {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+}
+.float-btn { animation: float-up 3s ease-in-out infinite; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.3s ease forwards; }
+
+.card {
+  background: #0C1018;
+  border: 1px solid #1C2236;
+  border-radius: 4px;
+}
+
+.card-accent {
+  background: #0C1018;
+  border-top: 1px solid #1C2236;
+  border-right: 1px solid #1C2236;
+  border-bottom: 1px solid #1C2236;
+  border-left: 3px solid #0066FF;
+  border-radius: 4px;
+}
+
+.btn-primary {
+  background: #0066FF;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms, box-shadow 150ms;
+}
+.btn-primary:hover {
+  background: #0052CC;
+  box-shadow: 0 0 20px rgba(0,102,255,0.4);
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.section-label-bar {
+  width: 3px;
+  height: 16px;
+  background: #0066FF;
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(0,102,255,0.6);
+  flex-shrink: 0;
+}
+.section-label-text {
+  color: #8892A4;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+* {
+  transition-property: background-color, border-color, color, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.ticker-animate, .skeleton, .pulse-ring, .pulse-dot, .glow-pulse, .float-btn {
+  transition: none;
 }
