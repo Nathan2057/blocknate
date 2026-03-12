@@ -1,16 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
+import { supabase } from "@/lib/supabase";
 
 const SIDEBAR_FULL = 240;
 const SIDEBAR_COLLAPSED = 60;
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    supabase!.auth.getUser().then(({ data }) => {
+      if (!data.user) {
+        router.push("/auth");
+      } else {
+        setAuthChecked(true);
+      }
+    });
+  }, [router]);
 
   useEffect(() => {
     function checkMobile() {
@@ -29,6 +43,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     } else {
       setCollapsed((prev) => !prev);
     }
+  }
+
+  if (!authChecked) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#06080F", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: 40, height: 40, border: "3px solid #1C2236", borderTop: "3px solid #0066FF", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+          <p style={{ color: "#8892A4", fontSize: "0.82rem" }}>Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

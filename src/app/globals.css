@@ -167,3 +167,7 @@ body {
 .ticker-animate, .skeleton, .pulse-ring, .pulse-dot, .glow-pulse, .float-btn {
   transition: none;
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

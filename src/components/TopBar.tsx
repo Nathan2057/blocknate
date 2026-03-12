@@ -1,8 +1,9 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { Menu } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -42,9 +43,13 @@ interface TopBarProps {
 
 export default function TopBar({ sidebarWidth, onMenuToggle }: TopBarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [ticker, setTicker] = useState<Record<string, TickerData>>({});
   const [lastUpdated, setLastUpdated] = useState<string>("");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [user, setUser] = useState<{ email?: string; user_metadata?: { full_name?: string } } | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const pageTitle = PAGE_TITLES[pathname] ?? "Blocknate";
 
@@ -71,6 +76,35 @@ export default function TopBar({ sidebarWidth, onMenuToggle }: TopBarProps) {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    supabase!.auth.getUser().then(({ data }) => setUser(data.user as typeof user));
+    const { data: { subscription } } = supabase!.auth.onAuthStateChange((_, session) => {
+      setUser((session?.user ?? null) as typeof user);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  async function handleSignOut() {
+    await supabase!.auth.signOut();
+    router.push("/");
+  }
+
+  const menuItemStyle: React.CSSProperties = {
+    display: "block", width: "100%", background: "none", border: "none",
+    padding: "8px 12px", color: "#8892A4", fontSize: "0.82rem",
+    textAlign: "left", cursor: "pointer", borderRadius: 2,
+  };
 
   const tickerItems = COIN_ORDER.filter((k) => ticker[k]).map((key) => {
     const coin = ticker[key];
@@ -278,6 +312,33 @@ export default function TopBar({ sidebarWidth, onMenuToggle }: TopBarProps) {
           )}
         </div>
       </div>
+
+      {/* User menu */}
+      {user ? (
+        <div ref={menuRef} style={{ borderLeft: "1px solid #1C2236", paddingLeft: 16, paddingRight: 12, height: "100%", display: "flex", alignItems: "center", position: "relative", flexShrink: 0 }}>
+          <div
+            onClick={() => setShowMenu((v) => !v)}
+            style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(0,102,255,0.2)", border: "1px solid #0066FF", display: "flex", alignItems: "center", justifyContent: "center", color: "#0066FF", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer" }}
+          >
+            {user.email?.[0]?.toUpperCase() ?? "?"}
+          </div>
+          {showMenu && (
+            <div style={{ position: "absolute", top: 48, right: 0, background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, padding: 8, minWidth: 200, zIndex: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+              <div style={{ padding: "8px 12px", borderBottom: "1px solid #1C2236", marginBottom: 4 }}>
+                <div style={{ color: "#FFFFFF", fontSize: "0.82rem", fontWeight: 600 }}>{user.user_metadata?.full_name || "Trader"}</div>
+                <div style={{ color: "#8892A4", fontSize: "0.72rem" }}>{user.email}</div>
+              </div>
+              <button onClick={() => { router.push("/portfolio"); setShowMenu(false); }} style={menuItemStyle}>Portfolio</button>
+              <button onClick={handleSignOut} style={{ ...menuItemStyle, color: "#FF3B5C" }}>Sign Out</button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ borderLeft: "1px solid #1C2236", paddingLeft: 16, paddingRight: 12, display: "flex", alignItems: "center", gap: 8, height: "100%", flexShrink: 0 }}>
+          <a href="/auth" style={{ color: "#8892A4", fontSize: "0.78rem", padding: "4px 12px", border: "1px solid #1C2236", borderRadius: 3, textDecoration: "none" }}>Sign In</a>
+          <a href="/auth" style={{ color: "#fff", fontSize: "0.78rem", padding: "4px 12px", background: "#0066FF", borderRadius: 3, textDecoration: "none", fontWeight: 600 }}>Sign Up</a>
+        </div>
+      )}
     </div>
   );
 }
