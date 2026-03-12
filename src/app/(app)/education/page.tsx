@@ -232,56 +232,59 @@ function ArticleCard({ article, onClick }: { article: Article; onClick: () => vo
   );
 }
 
-function renderContent(content: string): React.ReactNode {
+function renderContent(content: string) {
+  if (!content) return <p style={{ color: "#8892A4" }}>Content coming soon...</p>;
+
   const lines = content.split("\n");
-  return lines.map((line, i) => {
-    if (line.startsWith("## ")) {
-      return (
-        <h2 key={i} style={{ color: "#FFFFFF", fontSize: "1.15rem", fontWeight: 700, marginTop: 28, marginBottom: 10, borderBottom: "1px solid #1C2236", paddingBottom: 8 }}>
-          {line.replace("## ", "")}
-        </h2>
-      );
-    }
-    if (line.startsWith("✅") || line.startsWith("❌")) {
-      const isPos = line.startsWith("✅");
-      return (
-        <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "4px 0", padding: "6px 10px", background: isPos ? "rgba(0,200,150,0.05)" : "rgba(255,59,92,0.05)", borderRadius: 3, borderLeft: `2px solid ${isPos ? "#00C896" : "#FF3B5C"}` }}>
-          <span style={{ color: "#8892A4", fontSize: "0.88rem", lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, "<strong style=\"color:#fff\">$1</strong>") }} />
-        </div>
-      );
-    }
-    if (line.startsWith("- ")) {
-      return (
-        <div key={i} style={{ display: "flex", gap: 8, margin: "4px 0", paddingLeft: 8 }}>
-          <span style={{ color: "#0066FF", flexShrink: 0, lineHeight: 1.6 }}>•</span>
-          <span style={{ color: "#8892A4", fontSize: "0.88rem", lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: line.slice(2).replace(/\*\*(.*?)\*\*/g, "<strong style=\"color:#fff\">$1</strong>") }} />
-        </div>
-      );
-    }
-    if (/^\d+\. /.test(line)) {
-      const num = line.match(/^(\d+)\. /)?.[1] ?? "";
-      return (
-        <div key={i} style={{ display: "flex", gap: 8, margin: "4px 0", paddingLeft: 8 }}>
-          <span style={{ color: "#0066FF", flexShrink: 0, fontWeight: 700, fontSize: "0.88rem", lineHeight: 1.6 }}>{num}.</span>
-          <span style={{ color: "#8892A4", fontSize: "0.88rem", lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: line.replace(/^\d+\. /, "").replace(/\*\*(.*?)\*\*/g, "<strong style=\"color:#fff\">$1</strong>") }} />
-        </div>
-      );
-    }
-    if (line.trim() === "") {
-      return <div key={i} style={{ height: 8 }} />;
-    }
-    // Check if line is all-bold (acts as a subheading)
-    if (/^\*\*[^*]+\*\*[:\s]*$/.test(line.trim())) {
-      return (
-        <p key={i} style={{ color: "#E8ECF4", fontWeight: 700, fontSize: "0.92rem", margin: "12px 0 4px" }}>
-          {line.replace(/\*\*/g, "")}
-        </p>
-      );
-    }
-    return (
-      <p key={i} style={{ color: "#8892A4", lineHeight: 1.8, fontSize: "0.9rem", margin: "4px 0" }} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, "<strong style=\"color:#fff\">$1</strong>") }} />
-    );
-  });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {lines.map((line, i) => {
+        if (!line.trim()) return <div key={i} style={{ height: 6 }} />;
+
+        if (line.startsWith("## ")) return (
+          <h2 key={i} style={{ color: "#FFFFFF", fontSize: "1.1rem", fontWeight: 700, marginTop: 20, marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #1C2236" }}>
+            {line.replace("## ", "")}
+          </h2>
+        );
+
+        if (line.startsWith("✅") || line.startsWith("❌")) {
+          const isPos = line.startsWith("✅");
+          return (
+            <div key={i} style={{ padding: "7px 12px", borderRadius: 3, background: isPos ? "rgba(0,200,150,0.07)" : "rgba(255,59,92,0.07)", borderLeft: `2px solid ${isPos ? "#00C896" : "#FF3B5C"}`, color: "#CBD5E1", fontSize: "0.86rem", lineHeight: 1.6 }}>
+              {line}
+            </div>
+          );
+        }
+
+        if (line.startsWith("- ")) return (
+          <div key={i} style={{ display: "flex", gap: 8, paddingLeft: 8, color: "#8892A4", fontSize: "0.88rem", lineHeight: 1.7 }}>
+            <span style={{ color: "#0066FF", flexShrink: 0, marginTop: 2 }}>•</span>
+            <span dangerouslySetInnerHTML={{ __html: line.slice(2).replace(/\*\*(.*?)\*\*/g, "<strong style=\"color:#e2e8f0\">$1</strong>") }} />
+          </div>
+        );
+
+        if (/^\d+\./.test(line)) return (
+          <div key={i} style={{ display: "flex", gap: 8, paddingLeft: 8, color: "#8892A4", fontSize: "0.88rem", lineHeight: 1.7 }}>
+            <span style={{ color: "#0066FF", flexShrink: 0, fontWeight: 700, minWidth: 20 }}>
+              {line.match(/^\d+/)?.[0]}.
+            </span>
+            <span dangerouslySetInnerHTML={{ __html: line.replace(/^\d+\.\s*/, "").replace(/\*\*(.*?)\*\*/g, "<strong style=\"color:#e2e8f0\">$1</strong>") }} />
+          </div>
+        );
+
+        if (line.startsWith("**") && line.endsWith("**")) return (
+          <p key={i} style={{ color: "#FFFFFF", fontWeight: 600, fontSize: "0.92rem", marginTop: 10, marginBottom: 4 }}>
+            {line.replace(/\*\*/g, "")}
+          </p>
+        );
+
+        return (
+          <p key={i} style={{ color: "#8892A4", lineHeight: 1.8, fontSize: "0.88rem" }}
+            dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, "<strong style=\"color:#e2e8f0\">$1</strong>") }} />
+        );
+      })}
+    </div>
+  );
 }
 
 function ArticleModal({ article, onClose }: { article: Article; onClose: () => void }) {
@@ -304,11 +307,11 @@ function ArticleModal({ article, onClose }: { article: Article; onClose: () => v
           border: "1px solid #1C2236",
           borderTop: `3px solid ${color}`,
           borderRadius: 4,
-          maxWidth: 760,
+          maxWidth: 720,
           width: "100%",
-          maxHeight: "85vh",
+          maxHeight: "82vh",
           overflowY: "auto",
-          padding: 40,
+          padding: 36,
           position: "relative",
         }}
       >
@@ -338,10 +341,7 @@ function ArticleModal({ article, onClose }: { article: Article; onClose: () => v
 
         {/* Content */}
         <div style={{ borderTop: "1px solid #1C2236", paddingTop: 20 }}>
-          {article.content
-            ? renderContent(article.content)
-            : <p style={{ color: "#8892A4" }}>Content coming soon...</p>
-          }
+          {renderContent(article.content ?? "")}
         </div>
 
         {/* Footer */}
