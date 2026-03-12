@@ -28,7 +28,9 @@ interface NewsData {
   eth: NewsItem[];
   marketSentiment: SentimentInfo;
   sentimentBreakdown: { total: number; bullish: number; neutral: number; bearish: number };
+  source?: string;
   timestamp: string;
+  error?: string;
 }
 
 function timeAgo(dateStr: string) {
@@ -157,12 +159,18 @@ export default function NewsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Hot");
   const [sentimentFilter, setSentimentFilter] = useState<"all" | "bullish" | "bearish" | "neutral">("all");
 
+  const [error, setError] = useState<string | null>(null);
+
   const load = useCallback(() => {
     setLoading(true);
+    setError(null);
     fetch("/api/news")
       .then((r) => r.json())
-      .then((d: NewsData) => setData(d))
-      .catch(() => {})
+      .then((d: NewsData) => {
+        if (d.error) { setError(d.error); return; }
+        setData(d);
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load news"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -194,9 +202,16 @@ export default function NewsPage() {
   return (
     <div style={{ padding: 24, maxWidth: 1400, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <h1 style={{ color: "#E8ECF4", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>
-          News &amp; Sentiment
-        </h1>
+        <div>
+          <h1 style={{ color: "#E8ECF4", fontSize: "1.3rem", fontWeight: 700, margin: 0 }}>
+            News &amp; Sentiment
+          </h1>
+          {data?.source && (
+            <div style={{ color: "#4A5568", fontSize: "0.65rem", marginTop: 3 }}>
+              Source: {data.source === "cryptopanic" ? "CryptoPanic" : "RSS Feeds (CoinTelegraph, CoinDesk, Decrypt)"}
+            </div>
+          )}
+        </div>
         <button
           onClick={load}
           style={{
@@ -326,12 +341,33 @@ export default function NewsPage() {
           {loading ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} style={{ height: 100, background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4 }} />
+                <div key={i} style={{ height: 100, background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, padding: "14px 16px" }}>
+                  <div style={{ height: 16, width: "80%", background: "#1C2236", borderRadius: 3, marginBottom: 10 }} />
+                  <div style={{ height: 12, width: "50%", background: "#1C2236", borderRadius: 3, marginBottom: 8 }} />
+                  <div style={{ height: 10, width: "30%", background: "#1C2236", borderRadius: 3 }} />
+                </div>
               ))}
             </div>
+          ) : error ? (
+            <div style={{ background: "#0C1018", border: "1px solid #FF3B5C40", borderLeft: "3px solid #FF3B5C", borderRadius: 4, padding: 32, textAlign: "center" }}>
+              <div style={{ color: "#FF3B5C", fontWeight: 700, fontSize: "0.9rem", marginBottom: 8 }}>Failed to load news</div>
+              <div style={{ color: "#4A5568", fontSize: "0.78rem", marginBottom: 20 }}>{error}</div>
+              <button
+                onClick={load}
+                style={{ background: "#0066FF", border: "none", borderRadius: 4, color: "#fff", fontSize: "0.8rem", padding: "8px 20px", cursor: "pointer", fontWeight: 600 }}
+              >
+                Try Again
+              </button>
+            </div>
           ) : filtered.length === 0 ? (
-            <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, padding: 40, textAlign: "center", color: "#4A5568", fontSize: "0.85rem" }}>
-              No articles found for the selected filter.
+            <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, padding: 40, textAlign: "center" }}>
+              <div style={{ color: "#4A5568", fontSize: "0.85rem", marginBottom: 12 }}>No articles found for the selected filter.</div>
+              <button
+                onClick={() => setSentimentFilter("all")}
+                style={{ background: "transparent", border: "1px solid #1C2236", borderRadius: 3, color: "#8892A4", fontSize: "0.75rem", padding: "6px 14px", cursor: "pointer" }}
+              >
+                Show All
+              </button>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
