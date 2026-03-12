@@ -1,8 +1,6 @@
-// To enable Google OAuth:
-// 1. Go to Supabase Dashboard → Authentication → Providers
-// 2. Enable Google provider
-// 3. Add your Google OAuth credentials
-// 4. Add redirect URL: https://your-project.supabase.co/auth/v1/callback
+// IMPORTANT: In Supabase Dashboard → Authentication → URL Configuration
+// Set Site URL to: https://blocknate1.vercel.app
+// Add Redirect URLs: https://blocknate1.vercel.app/auth/callback
 "use client";
 
 import { useEffect, useState } from "react";
@@ -26,18 +24,21 @@ function getPasswordStrength(pw: string): { level: number; label: string; color:
   return { level: 3, label: "Strong", color: "#00C896" };
 }
 
-/* ─── icons ─── */
-function GoogleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908C16.658 14.013 17.64 11.705 17.64 9.2z" fill="#4285F4"/>
-      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
-      <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-    </svg>
-  );
+function hexToRgb(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `${r},${g},${b}`;
 }
 
+const COINS = [
+  { symbol: "BTC", color: "#F7931A", top: "15%", left: "6%", delay: "0s" },
+  { symbol: "ETH", color: "#627EEA", top: "55%", left: "3%", delay: "1.2s" },
+  { symbol: "SOL", color: "#9945FF", top: "75%", left: "12%", delay: "2s" },
+  { symbol: "BNB", color: "#F3BA2F", top: "35%", left: "1%", delay: "0.6s" },
+];
+
+/* ─── icons ─── */
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -59,7 +60,7 @@ function Spinner() {
 /* ─── shared input style ─── */
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  background: "#06080F",
+  background: "rgba(6,8,15,0.8)",
   border: "1px solid #1C2236",
   borderRadius: 3,
   padding: "10px 12px",
@@ -82,7 +83,7 @@ function ErrorBox({ msg }: { msg: string }) {
 /* ─── Mock signal preview (left column) ─── */
 function MockSignal() {
   return (
-    <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderTop: "2px solid #00C896", borderRadius: 6, padding: "14px 16px", maxWidth: 300 }}>
+    <div style={{ background: "rgba(12,16,24,0.9)", border: "1px solid #1C2236", borderTop: "2px solid #00C896", borderRadius: 6, padding: "14px 16px", maxWidth: 300 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <span style={{ color: "#E8ECF4", fontWeight: 700, fontSize: "0.88rem" }}>BTCUSDT</span>
         <span style={{ background: "#00C89618", color: "#00C896", border: "1px solid #00C89630", borderRadius: 3, padding: "1px 7px", fontSize: "0.65rem", fontWeight: 700 }}>LONG</span>
@@ -162,18 +163,14 @@ export default function AuthPage() {
     const { error } = await supabase!.auth.signUp({
       email: suEmail,
       password: suPw,
-      options: { data: { full_name: suName } },
+      options: {
+        data: { full_name: suName },
+        emailRedirectTo: "https://blocknate1.vercel.app/auth/callback",
+      },
     });
     if (error) { setSuError(mapError(error.message)); setSuLoading(false); return; }
     setSuSuccess("Account created! Check your email to verify your account.");
     setTimeout(() => router.push("/dashboard"), 2000);
-  }
-
-  async function handleGoogle() {
-    await supabase!.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
   }
 
   async function handleForgotPassword(e: React.FormEvent) {
@@ -189,31 +186,36 @@ export default function AuthPage() {
 
   const strength = getPasswordStrength(suPw);
 
-  /* ── shared divider + google button ── */
-  function OAuthSection() {
-    return (
-      <>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
-          <div style={{ flex: 1, height: 1, background: "#1C2236" }} />
-          <span style={{ color: "#4A5568", fontSize: "0.72rem", whiteSpace: "nowrap" }}>or continue with</span>
-          <div style={{ flex: 1, height: 1, background: "#1C2236" }} />
-        </div>
-        <button onClick={handleGoogle} type="button" style={{ width: "100%", background: "transparent", border: "1px solid #1C2236", borderRadius: 3, padding: "10px 16px", color: "#E8ECF4", fontSize: "0.88rem", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-          <GoogleIcon />
-          Continue with Google
-        </button>
-      </>
-    );
-  }
-
   return (
-    <div style={{ minHeight: "100vh", background: "#06080F", position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-      {/* Background layers */}
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 100% 60% at 50% 0%, rgba(0,102,255,0.12) 0%, transparent 60%)", pointerEvents: "none" }} />
-      <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(28,34,54,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(28,34,54,0.3) 1px, transparent 1px)", backgroundSize: "60px 60px", pointerEvents: "none", maskImage: "radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%)", WebkitMaskImage: "radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%)" }} />
+    <div style={{ minHeight: "100vh", background: "#06080F", position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 24px 40px" }}>
+
+      {/* LAYER 1 — Top blue radial glow */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "60%", background: "radial-gradient(ellipse 80% 60% at 50% -5%, rgba(0,102,255,0.2) 0%, transparent 65%)", pointerEvents: "none" }} />
+
+      {/* LAYER 2 — Bottom subtle green glow */}
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "40%", background: "radial-gradient(ellipse 60% 40% at 50% 100%, rgba(0,200,150,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+      {/* LAYER 3 — Dot grid */}
+      <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(28,34,54,0.8) 1px, transparent 1px)", backgroundSize: "28px 28px", pointerEvents: "none", opacity: 0.6, maskImage: "radial-gradient(ellipse 90% 90% at 50% 50%, black 40%, transparent 100%)", WebkitMaskImage: "radial-gradient(ellipse 90% 90% at 50% 50%, black 40%, transparent 100%)" }} />
+
+      {/* LAYER 4 — Left floating orb (blue) */}
+      <div style={{ position: "absolute", top: "20%", left: "-5%", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(0,102,255,0.1) 0%, transparent 70%)", animation: "float-orb 8s ease-in-out infinite", pointerEvents: "none" }} />
+
+      {/* LAYER 5 — Right floating orb (green) */}
+      <div style={{ position: "absolute", top: "40%", right: "-8%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(0,200,150,0.07) 0%, transparent 70%)", animation: "float-orb 11s ease-in-out infinite reverse", pointerEvents: "none" }} />
+
+      {/* LAYER 6 — Bottom left orb */}
+      <div style={{ position: "absolute", bottom: "5%", left: "20%", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(0,102,255,0.06) 0%, transparent 70%)", animation: "float-orb 14s ease-in-out infinite", pointerEvents: "none" }} />
+
+      {/* LAYER 7 — Floating coin badges (desktop only, left side) */}
+      {!isMobile && COINS.map((coin) => (
+        <div key={coin.symbol} style={{ position: "absolute", top: coin.top, left: coin.left, width: 44, height: 44, borderRadius: 10, background: `rgba(${hexToRgb(coin.color)}, 0.1)`, border: `1px solid rgba(${hexToRgb(coin.color)}, 0.3)`, display: "flex", alignItems: "center", justifyContent: "center", animation: "float-coin 6s ease-in-out infinite", animationDelay: coin.delay, backdropFilter: "blur(6px)", pointerEvents: "none" }}>
+          <span style={{ color: coin.color, fontSize: "0.6rem", fontWeight: 800 }}>{coin.symbol}</span>
+        </div>
+      ))}
 
       {/* Top nav */}
-      <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 56, display: "flex", alignItems: "center", padding: "0 24px", background: "rgba(6,8,15,0.8)", backdropFilter: "blur(12px)", borderBottom: "1px solid #1C2236", zIndex: 50 }}>
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 56, display: "flex", alignItems: "center", padding: "0 24px", background: "rgba(6,8,15,0.85)", backdropFilter: "blur(12px)", borderBottom: "1px solid #1C2236", zIndex: 50 }}>
         <Link href="/" style={{ textDecoration: "none", fontWeight: 900, fontSize: "1.1rem", letterSpacing: "-0.02em" }}>
           <span style={{ color: "#FFFFFF" }}>BLOCK</span>
           <span style={{ color: "#0066FF" }}>NATE</span>
@@ -221,7 +223,7 @@ export default function AuthPage() {
       </div>
 
       {/* Two-column layout */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 64, maxWidth: 900, width: "100%", marginTop: 32, alignItems: "center" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 64, maxWidth: 900, width: "100%", alignItems: "center", position: "relative" }}>
 
         {/* Left column */}
         {!isMobile && (
@@ -248,15 +250,14 @@ export default function AuthPage() {
             </div>
 
             <MockSignal />
-
             <p style={{ color: "#4A5568", fontSize: "0.72rem", marginTop: 20 }}>Trusted by serious traders</p>
           </div>
         )}
 
-        {/* Right column — auth card */}
-        <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, padding: 40 }}>
+        {/* Right column — auth card (glassmorphism) */}
+        <div style={{ background: "rgba(12,16,24,0.85)", backdropFilter: "blur(20px)", border: "1px solid rgba(28,34,54,0.8)", borderRadius: 4, padding: 40 }}>
           {/* Tabs */}
-          <div style={{ display: "flex", borderBottom: "1px solid #1C2236", marginBottom: 28, gap: 0 }}>
+          <div style={{ display: "flex", borderBottom: "1px solid #1C2236", marginBottom: 28 }}>
             {(["signin", "signup"] as const).map((t) => (
               <button key={t} onClick={() => { setTab(t); setSiError(""); setSuError(""); setShowForgot(false); setForgotMsg(""); }} style={{ flex: 1, background: "transparent", border: "none", borderBottom: tab === t ? "2px solid #0066FF" : "2px solid transparent", padding: "10px 0", marginBottom: -1, color: tab === t ? "#FFFFFF" : "#4A5568", fontSize: "0.88rem", fontWeight: tab === t ? 700 : 400, cursor: "pointer", transition: "color 150ms, border-color 150ms" }}>
                 {t === "signin" ? "Sign In" : "Create Account"}
@@ -295,8 +296,6 @@ export default function AuthPage() {
                   <button type="submit" disabled={siLoading} style={{ width: "100%", background: "#0066FF", color: "#fff", border: "none", borderRadius: 3, padding: "11px 0", fontWeight: 700, fontSize: "0.9rem", cursor: siLoading ? "default" : "pointer", opacity: siLoading ? 0.8 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                     {siLoading ? <><Spinner /> Signing in...</> : "Sign In"}
                   </button>
-
-                  <OAuthSection />
 
                   <p style={{ textAlign: "center", color: "#4A5568", fontSize: "0.8rem", marginTop: 20 }}>
                     Don&apos;t have an account?{" "}
@@ -384,18 +383,13 @@ export default function AuthPage() {
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 20, cursor: "pointer" }}>
                 <input type="checkbox" checked={suTerms} onChange={(e) => setSuTerms(e.target.checked)} style={{ marginTop: 2, accentColor: "#0066FF", flexShrink: 0 }} />
                 <span style={{ color: "#8892A4", fontSize: "0.8rem", lineHeight: 1.5 }}>
-                  I agree to the{" "}
-                  <span style={{ color: "#0066FF" }}>Terms of Service</span>{" "}
-                  and{" "}
-                  <span style={{ color: "#0066FF" }}>Privacy Policy</span>
+                  I agree to the <span style={{ color: "#0066FF" }}>Terms of Service</span> and <span style={{ color: "#0066FF" }}>Privacy Policy</span>
                 </span>
               </label>
 
               <button type="submit" disabled={suLoading || !!suSuccess} style={{ width: "100%", background: "#0066FF", color: "#fff", border: "none", borderRadius: 3, padding: "11px 0", fontWeight: 700, fontSize: "0.9rem", cursor: suLoading || !!suSuccess ? "default" : "pointer", opacity: suLoading || !!suSuccess ? 0.8 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                 {suLoading ? <><Spinner /> Creating account...</> : "Create Account"}
               </button>
-
-              <OAuthSection />
 
               <p style={{ textAlign: "center", color: "#4A5568", fontSize: "0.8rem", marginTop: 20 }}>
                 Already have an account?{" "}
