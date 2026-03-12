@@ -50,8 +50,9 @@ export default function BTCDominancePage() {
   }, []);
 
   useEffect(() => {
-    if (!chartRef.current) return;
-    chartRef.current.innerHTML = "";
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.innerHTML = "";
 
     const wrapper = document.createElement("div");
     wrapper.className = "tradingview-widget-container";
@@ -84,10 +85,10 @@ export default function BTCDominancePage() {
 
     wrapper.appendChild(widgetDiv);
     wrapper.appendChild(script);
-    chartRef.current.appendChild(wrapper);
+    chart.appendChild(wrapper);
 
     return () => {
-      if (chartRef.current) chartRef.current.innerHTML = "";
+      chart.innerHTML = "";
     };
   }, []);
 

@@ -27,16 +27,25 @@ const STEPS = [
 ];
 
 export default function HowItWorks() {
-  const { ref, inView } = useInView();
+  const { ref: headerRef, inView: headerIn } = useInView();
+  const { ref: ref1, inView: inView1 } = useInView();
+  const { ref: ref2, inView: inView2 } = useInView();
+  const { ref: ref3, inView: inView3 } = useInView();
+
+  const stepRefs = [
+    { ref: ref1, inView: inView1 },
+    { ref: ref2, inView: inView2 },
+    { ref: ref3, inView: inView3 },
+  ];
 
   return (
     <section style={{ padding: "100px 24px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}
-        <div ref={ref} style={{
+        <div ref={headerRef} style={{
           textAlign: "center", marginBottom: 64,
-          opacity: inView ? 1 : 0,
-          transform: inView ? "translateY(0)" : "translateY(30px)",
+          opacity: headerIn ? 1 : 0,
+          transform: headerIn ? "translateY(0)" : "translateY(30px)",
           transition: "opacity 0.6s ease, transform 0.6s ease",
         }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
@@ -54,7 +63,7 @@ export default function HowItWorks() {
           <div style={{ position: "absolute", top: 44, left: "16.67%", right: "16.67%", height: 1, borderTop: "2px dashed #1C2236", zIndex: 0 }} />
 
           {STEPS.map((step, i) => {
-            const { ref: sRef, inView: sIn } = useInView();
+            const { ref: sRef, inView: sIn } = stepRefs[i];
             return (
               <div key={step.num} ref={sRef} style={{
                 padding: "0 32px", textAlign: "center", position: "relative", zIndex: 1,
@@ -62,7 +71,6 @@ export default function HowItWorks() {
                 transform: sIn ? "translateY(0)" : "translateY(30px)",
                 transition: `opacity 0.6s ease ${i * 0.15}s, transform 0.6s ease ${i * 0.15}s`,
               }}>
-                {/* Icon circle */}
                 <div style={{
                   width: 88, height: 88, borderRadius: "50%",
                   background: `${step.color}12`,
@@ -73,7 +81,6 @@ export default function HowItWorks() {
                   position: "relative",
                 }}>
                   {step.icon}
-                  {/* Number badge */}
                   <div style={{
                     position: "absolute", top: -8, right: -8,
                     background: step.color, color: "#fff",

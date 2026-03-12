@@ -11,7 +11,10 @@
       "Bash(curl -s http://localhost:3001/ -o /dev/null -w \"%{http_code}\")",
       "Read(//tmp/**)",
       "Bash(curl -s http://localhost:3002/dashboard -o /dev/null -w \"%{http_code}\")",
-      "Bash(python3 -c \"import sys,re; body=sys.stdin.read\\(\\); errors=[m for m in re.findall\\(r''''Error[^<]{0,300}'''', body\\)]; print\\(''''\\\\n''''.join\\(errors[:5]\\)\\)\")"
+      "Bash(python3 -c \"import sys,re; body=sys.stdin.read\\(\\); errors=[m for m in re.findall\\(r''''Error[^<]{0,300}'''', body\\)]; print\\(''''\\\\n''''.join\\(errors[:5]\\)\\)\")",
+      "Bash(cat \"c:/Users/nishc/blocknate/src/app/\\(app\\)/tools/liquidations/page.tsx\")",
+      "Bash(python3 -c \":*)",
+      "Bash(npm run:*)"
     ]
   }
 }

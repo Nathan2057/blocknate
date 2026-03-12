@@ -6,8 +6,9 @@ export default function HeatmapPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = "";
+    const container = containerRef.current;
+    if (!container) return;
+    container.innerHTML = "";
 
     const wrapper = document.createElement("div");
     wrapper.className = "tradingview-widget-container";
@@ -41,10 +42,10 @@ export default function HeatmapPage() {
 
     wrapper.appendChild(widgetDiv);
     wrapper.appendChild(script);
-    containerRef.current.appendChild(wrapper);
+    container.appendChild(wrapper);
 
     return () => {
-      if (containerRef.current) containerRef.current.innerHTML = "";
+      container.innerHTML = "";
     };
   }, []);
 

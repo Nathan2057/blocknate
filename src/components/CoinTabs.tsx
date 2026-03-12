@@ -11,9 +11,10 @@ export default function CoinTabs() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    const chartContainer = chartContainerRef.current;
+    if (!chartContainer) return;
 
-    chartContainerRef.current.innerHTML = "";
+    chartContainer.innerHTML = "";
 
     const script = document.createElement("script");
     script.src =
@@ -36,12 +37,10 @@ export default function CoinTabs() {
       support_host: "https://www.tradingview.com",
     });
 
-    chartContainerRef.current.appendChild(script);
+    chartContainer.appendChild(script);
 
     return () => {
-      if (chartContainerRef.current) {
-        chartContainerRef.current.innerHTML = "";
-      }
+      chartContainer.innerHTML = "";
     };
   }, [activeTab]);
 

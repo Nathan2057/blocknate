@@ -11,15 +11,28 @@ const TOOLS = [
 ];
 
 export default function ToolsPreview() {
-  const { ref, inView } = useInView();
+  const { ref: headerRef, inView: headerIn } = useInView();
+  const { ref: ref1, inView: inView1 } = useInView();
+  const { ref: ref2, inView: inView2 } = useInView();
+  const { ref: ref3, inView: inView3 } = useInView();
+  const { ref: ref4, inView: inView4 } = useInView();
+  const { ref: ref5, inView: inView5 } = useInView();
+
+  const toolRefs = [
+    { ref: ref1, inView: inView1 },
+    { ref: ref2, inView: inView2 },
+    { ref: ref3, inView: inView3 },
+    { ref: ref4, inView: inView4 },
+    { ref: ref5, inView: inView5 },
+  ];
 
   return (
     <section id="tools" style={{ padding: "100px 24px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div ref={ref} style={{
+        <div ref={headerRef} style={{
           textAlign: "center", marginBottom: 48,
-          opacity: inView ? 1 : 0,
-          transform: inView ? "translateY(0)" : "translateY(30px)",
+          opacity: headerIn ? 1 : 0,
+          transform: headerIn ? "translateY(0)" : "translateY(30px)",
           transition: "opacity 0.6s ease, transform 0.6s ease",
         }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
@@ -36,27 +49,24 @@ export default function ToolsPreview() {
 
         <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
           {TOOLS.map((tool, i) => {
-            const { ref: tRef, inView: tIn } = useInView();
+            const { ref: tRef, inView: tIn } = toolRefs[i];
             return (
               <div key={tool.name} ref={tRef} style={{
                 flex: "0 0 260px",
                 background: "#0C1018",
                 border: "1px solid #1C2236",
-                borderTop: `3px solid ${tool.color}`,
+                borderTop: "3px solid " + tool.color,
                 borderRadius: 4,
                 padding: 24,
                 opacity: tIn ? 1 : 0,
                 transform: tIn ? "translateY(0)" : "translateY(20px)",
-                transition: `opacity 0.5s ease ${i * 0.08}s, transform 0.5s ease ${i * 0.08}s`,
+                transition: "opacity 0.5s ease " + (i * 0.08) + "s, transform 0.5s ease " + (i * 0.08) + "s",
               }}>
                 <div style={{ fontSize: "2rem", marginBottom: 14 }}>{tool.icon}</div>
                 <div style={{ color: "#E8ECF4", fontWeight: 700, fontSize: "0.95rem", marginBottom: 8 }}>{tool.name}</div>
                 <p style={{ color: "#8892A4", fontSize: "0.8rem", lineHeight: 1.6, marginBottom: 16 }}>{tool.desc}</p>
-                <a href={tool.href} style={{
-                  color: tool.color, fontSize: "0.78rem", fontWeight: 600,
-                  textDecoration: "none",
-                }}>
-                  Open Tool →
+                <a href={tool.href} style={{ color: tool.color, fontSize: "0.78rem", fontWeight: 600, textDecoration: "none" }}>
+                  Open Tool
                 </a>
               </div>
             );
