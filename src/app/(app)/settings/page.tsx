@@ -279,7 +279,7 @@ export default function SettingsPage() {
 
         {/* Tab content */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {activeTab === "profile"       && <ProfileTab profile={profile} updateProfile={updateProfile} showToast={showToast} />}
+          {activeTab === "profile"       && <ProfileTab profile={profile} updateProfile={updateProfile} />}
           {activeTab === "appearance"    && <AppearanceTab profile={profile} updateProfile={updateProfile} />}
           {activeTab === "notifications" && <NotificationsTab profile={profile} updateProfile={updateProfile} />}
           {activeTab === "dashboard"     && <DashboardTab profile={profile} updateProfile={updateProfile} />}
@@ -297,11 +297,9 @@ export default function SettingsPage() {
 function ProfileTab({
   profile,
   updateProfile,
-  showToast,
 }: {
   profile: Profile;
   updateProfile: (u: Partial<Profile>) => Promise<void>;
-  showToast: (m: string, t?: "success" | "error") => void;
 }) {
   const [name, setName] = useState(profile.full_name ?? "");
   const [saving, setSaving] = useState(false);
