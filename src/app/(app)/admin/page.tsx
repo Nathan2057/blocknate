@@ -832,16 +832,40 @@ export default function AdminPage() {
   const [lastUpdated, setLastUpdated] = useState("");
 
   useEffect(() => {
-    (async () => {
+    const checkAccess = async () => {
       const { data: { user } } = await supabase!.auth.getUser();
       if (!user) { router.push("/auth"); return; }
-      const { data: profile } = await supabase!.from("profiles").select("role").eq("id", user.id).single();
-      const role = (profile?.role ?? "user") as UserRole;
-      if (role !== "admin" && role !== "super_admin") { router.push("/dashboard"); return; }
+
+      const { data: profile, error } = await supabase!
+        .from("profiles")
+        .select("role, email")
+        .eq("id", user.id)
+        .single();
+
+      console.log("Admin check:", user.email, profile, error);
+
+      if (!profile) {
+        await supabase!.from("profiles").upsert({
+          id: user.id,
+          email: user.email,
+          full_name: (user.user_metadata as Record<string, string>)?.full_name ?? "",
+          role: "user",
+        });
+        router.push("/dashboard");
+        return;
+      }
+
+      const role = profile.role as UserRole;
+      if (role !== "admin" && role !== "super_admin") {
+        router.push("/dashboard");
+        return;
+      }
+
       setUserRole(role);
       setCurrentUserId(user.id);
       setAuthChecked(true);
-    })();
+    };
+    checkAccess();
   }, [router]);
 
   const fetchStats = useCallback(async () => {

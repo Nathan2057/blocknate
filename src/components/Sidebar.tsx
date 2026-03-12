@@ -103,12 +103,20 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   });
 
   useEffect(() => {
-    supabase!.auth.getUser().then(({ data: { user } }) => {
+    const checkRole = async () => {
+      const { data: { user } } = await supabase!.auth.getUser();
       if (!user) return;
-      supabase!.from("profiles").select("role").eq("id", user.id).single().then(({ data }) => {
-        setIsAdmin(["admin", "super_admin"].includes(data?.role ?? ""));
-      });
-    });
+      const { data: profile, error } = await supabase!
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      console.log("Sidebar role check:", profile, error);
+      if (profile?.role === "admin" || profile?.role === "super_admin") {
+        setIsAdmin(true);
+      }
+    };
+    checkRole();
   }, []);
 
   function toggleSection(title: string) {
