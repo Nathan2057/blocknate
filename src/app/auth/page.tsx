@@ -136,6 +136,7 @@ export default function AuthPage() {
   const [suLoading, setSuLoading] = useState(false);
   const [suError, setSuError] = useState("");
   const [suSuccess, setSuSuccess] = useState("");
+  const [canSwitchToSignIn, setCanSwitchToSignIn] = useState(false);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 900);
@@ -157,9 +158,25 @@ export default function AuthPage() {
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
     setSuError("");
+    setCanSwitchToSignIn(false);
     if (suPw !== suConfirm) { setSuError("Passwords do not match"); return; }
     if (!suTerms) { setSuError("Please accept the Terms of Service"); return; }
     setSuLoading(true);
+
+    // Check if email already exists in profiles
+    const { data: existingUser } = await supabase!
+      .from("profiles")
+      .select("email")
+      .eq("email", suEmail.toLowerCase().trim())
+      .single();
+
+    if (existingUser) {
+      setSuError("An account with this email already exists. Please sign in instead.");
+      setCanSwitchToSignIn(true);
+      setSuLoading(false);
+      return;
+    }
+
     const { error } = await supabase!.auth.signUp({
       email: suEmail,
       password: suPw,
@@ -168,7 +185,24 @@ export default function AuthPage() {
         emailRedirectTo: "https://blocknate1.vercel.app/auth/callback",
       },
     });
-    if (error) { setSuError(mapError(error.message)); setSuLoading(false); return; }
+    if (error) {
+      if (
+        error.message.includes("already registered") ||
+        error.message.includes("already exists") ||
+        error.message.includes("User already registered")
+      ) {
+        setSuError("An account with this email already exists. Please sign in instead.");
+        setCanSwitchToSignIn(true);
+      } else if (error.message.includes("Password should be")) {
+        setSuError("Password must be at least 6 characters.");
+      } else if (error.message.includes("valid email")) {
+        setSuError("Please enter a valid email address.");
+      } else {
+        setSuError(mapError(error.message));
+      }
+      setSuLoading(false);
+      return;
+    }
     setSuSuccess("Account created! Check your email to verify your account.");
     setTimeout(() => router.push("/dashboard"), 2000);
   }
@@ -177,7 +211,7 @@ export default function AuthPage() {
     e.preventDefault();
     setForgotLoading(true);
     const { error } = await supabase!.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: "https://blocknate1.vercel.app/auth/callback",
+      redirectTo: "https://blocknate1.vercel.app/auth/callback?type=recovery",
     });
     setForgotLoading(false);
     if (error) { setForgotMsg(`Error: ${error.message}`); return; }
@@ -259,7 +293,7 @@ export default function AuthPage() {
           {/* Tabs */}
           <div style={{ display: "flex", borderBottom: "1px solid #1C2236", marginBottom: 28 }}>
             {(["signin", "signup"] as const).map((t) => (
-              <button key={t} onClick={() => { setTab(t); setSiError(""); setSuError(""); setShowForgot(false); setForgotMsg(""); }} style={{ flex: 1, background: "transparent", border: "none", borderBottom: tab === t ? "2px solid #0066FF" : "2px solid transparent", padding: "10px 0", marginBottom: -1, color: tab === t ? "#FFFFFF" : "#4A5568", fontSize: "0.88rem", fontWeight: tab === t ? 700 : 400, cursor: "pointer", transition: "color 150ms, border-color 150ms" }}>
+              <button key={t} onClick={() => { setTab(t); setSiError(""); setSuError(""); setShowForgot(false); setForgotMsg(""); setCanSwitchToSignIn(false); }} style={{ flex: 1, background: "transparent", border: "none", borderBottom: tab === t ? "2px solid #0066FF" : "2px solid transparent", padding: "10px 0", marginBottom: -1, color: tab === t ? "#FFFFFF" : "#4A5568", fontSize: "0.88rem", fontWeight: tab === t ? 700 : 400, cursor: "pointer", transition: "color 150ms, border-color 150ms" }}>
                 {t === "signin" ? "Sign In" : "Create Account"}
               </button>
             ))}
@@ -335,6 +369,15 @@ export default function AuthPage() {
           {tab === "signup" && (
             <form onSubmit={handleSignUp}>
               <ErrorBox msg={suError} />
+              {canSwitchToSignIn && (
+                <button
+                  type="button"
+                  onClick={() => { setTab("signin"); setCanSwitchToSignIn(false); }}
+                  style={{ color: "#0066FF", fontSize: "0.78rem", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginTop: -4, marginBottom: 8, display: "block", padding: 0 }}
+                >
+                  Sign in to your existing account →
+                </button>
+              )}
 
               {suSuccess && (
                 <div style={{ background: "rgba(0,200,150,0.08)", border: "1px solid rgba(0,200,150,0.3)", borderRadius: 3, padding: "10px 14px", color: "#00C896", fontSize: "0.82rem", marginBottom: 12 }}>
@@ -349,7 +392,7 @@ export default function AuthPage() {
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: "block", color: "#8892A4", fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6 }}>Email</label>
-                <input type="email" required value={suEmail} onChange={(e) => setSuEmail(e.target.value)} placeholder="you@example.com" style={inputStyle} />
+                <input type="email" required value={suEmail} onChange={(e) => { setSuEmail(e.target.value); setCanSwitchToSignIn(false); }} placeholder="you@example.com" style={inputStyle} />
               </div>
 
               <div style={{ marginBottom: 8 }}>
