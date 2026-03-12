@@ -132,6 +132,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       >
         {collapsed ? (
           <>
+            <Link href="/dashboard" style={{ display: "flex", alignItems: "center" }}>
             <div
               className="pulse-dot"
               style={{
@@ -141,6 +142,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 backgroundColor: "#00C896",
               }}
             />
+            </Link>
             <button
               onClick={onToggle}
               style={{
@@ -164,7 +166,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </>
         ) : (
           <>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
               <span style={{ fontWeight: 700, fontSize: "1.05rem", letterSpacing: "-0.02em" }}>
                 <span style={{ color: "#FFFFFF" }}>BLOCK</span>
                 <span style={{ color: "#0066FF" }}>NATE</span>
@@ -179,7 +181,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   flexShrink: 0,
                 }}
               />
-            </div>
+            </Link>
             <button
               onClick={onToggle}
               style={{
