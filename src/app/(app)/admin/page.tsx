@@ -1164,8 +1164,8 @@ function CronJobsTab() {
   }
 
   const CRONS = [
-    { key: "gen", title: "Signal Generator", url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/generate-signals?secret=${API_SECRET}`, schedule: "Every 1 hour", desc: "Generates new trading signals" },
-    { key: "upd", title: "Signal Status Updater", url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/update-signal-status?secret=${API_SECRET}`, schedule: "Every 30 minutes", desc: "Updates TP/SL hit status" },
+    { key: "gen", title: "Signal Generator", url: `https://blocknate.vercel.app/api/generate-signals?secret=${API_SECRET}`, schedule: "Every 4 hours (0 0,4,8,12,16,20 * * *)", desc: "Generates new trading signals" },
+    { key: "upd", title: "Signal Status Updater", url: `https://blocknate.vercel.app/api/update-signal-status?secret=${API_SECRET}`, schedule: "Every 30 minutes", desc: "Updates TP/SL hit status" },
   ];
 
   return (
@@ -1213,8 +1213,99 @@ function CronJobsTab() {
   );
 }
 
+/* ─── ISSUE LOG TAB ─── */
+type LogLevel = "INFO" | "WARN" | "ERROR";
+interface IssueLog {
+  id: string;
+  created_at: string;
+  level: LogLevel;
+  source: string;
+  message: string;
+  details: Record<string, unknown> | null;
+}
+
+function IssueLogTab() {
+  const [logs, setLogs] = useState<IssueLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [levelFilter, setLevelFilter] = useState<LogLevel | "ALL">("ALL");
+  const [sourceFilter, setSourceFilter] = useState<string>("ALL");
+  const [selected, setSelected] = useState<IssueLog | null>(null);
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    let q = supabase!.from("issue_logs").select("*").order("created_at", { ascending: false }).limit(200);
+    if (levelFilter !== "ALL") q = q.eq("level", levelFilter);
+    if (sourceFilter !== "ALL") q = q.eq("source", sourceFilter);
+    const { data } = await q;
+    setLogs((data ?? []) as IssueLog[]);
+    setLoading(false);
+  }, [levelFilter, sourceFilter]);
+
+  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+
+  const sources = Array.from(new Set(logs.map((l) => l.source)));
+  const levelColor: Record<LogLevel, string> = { INFO: "#00C896", WARN: "#F59E0B", ERROR: "#FF3B5C" };
+  const levelBg: Record<LogLevel, string> = { INFO: "rgba(0,200,150,0.1)", WARN: "rgba(245,158,11,0.1)", ERROR: "rgba(255,59,92,0.1)" };
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+        <h3 style={{ color: "#FFFFFF", fontSize: "0.88rem", fontWeight: 700, margin: 0 }}>Issue Log</h3>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value as LogLevel | "ALL")} style={{ background: "#0C1018", border: "1px solid #1C2236", color: "#8892A4", borderRadius: 3, padding: "4px 8px", fontSize: "0.75rem" }}>
+            <option value="ALL">All Levels</option>
+            <option value="INFO">INFO</option>
+            <option value="WARN">WARN</option>
+            <option value="ERROR">ERROR</option>
+          </select>
+          <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} style={{ background: "#0C1018", border: "1px solid #1C2236", color: "#8892A4", borderRadius: 3, padding: "4px 8px", fontSize: "0.75rem" }}>
+            <option value="ALL">All Sources</option>
+            {sources.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <button onClick={fetchLogs} style={{ background: "rgba(0,102,255,0.1)", border: "1px solid rgba(0,102,255,0.3)", color: "#0066FF", borderRadius: 3, padding: "4px 12px", fontSize: "0.75rem", cursor: "pointer" }}>Refresh</button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", color: "#4A5568", padding: 40, fontSize: "0.8rem" }}>Loading...</div>
+      ) : logs.length === 0 ? (
+        <div style={{ textAlign: "center", color: "#4A5568", padding: 40, fontSize: "0.8rem" }}>No logs found</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {logs.map((log) => (
+            <div key={log.id} onClick={() => setSelected(log)} style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, padding: "10px 14px", cursor: "pointer", display: "grid", gridTemplateColumns: "56px 110px 1fr auto", gap: 10, alignItems: "center" }}>
+              <span style={{ background: levelBg[log.level], color: levelColor[log.level], border: `1px solid ${levelColor[log.level]}40`, borderRadius: 3, padding: "1px 6px", fontSize: "0.62rem", fontWeight: 700, textAlign: "center" }}>{log.level}</span>
+              <span style={{ color: "#4A5568", fontSize: "0.7rem", fontFamily: "monospace" }}>{log.source}</span>
+              <span style={{ color: "#8892A4", fontSize: "0.75rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.message}</span>
+              <span style={{ color: "#4A5568", fontSize: "0.68rem", whiteSpace: "nowrap" }}>{new Date(log.created_at).toLocaleTimeString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {selected && (
+        <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 6, padding: 24, maxWidth: 600, width: "100%", maxHeight: "80vh", overflow: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+              <span style={{ background: levelBg[selected.level], color: levelColor[selected.level], border: `1px solid ${levelColor[selected.level]}40`, borderRadius: 3, padding: "2px 10px", fontSize: "0.7rem", fontWeight: 700 }}>{selected.level}</span>
+              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: "#4A5568", cursor: "pointer", fontSize: "1rem" }}>✕</button>
+            </div>
+            <div style={{ color: "#4A5568", fontSize: "0.7rem", marginBottom: 6 }}>{selected.source} · {new Date(selected.created_at).toLocaleString()}</div>
+            <div style={{ color: "#FFFFFF", fontSize: "0.85rem", marginBottom: 16 }}>{selected.message}</div>
+            {selected.details && (
+              <pre style={{ background: "#080C14", border: "1px solid #1C2236", borderRadius: 4, padding: 12, color: "#8892A4", fontSize: "0.72rem", overflow: "auto", margin: 0 }}>
+                {JSON.stringify(selected.details, null, 2)}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── MAIN PAGE ─── */
-type Tab = "users" | "signals" | "articles" | "system" | "cron";
+type Tab = "users" | "signals" | "articles" | "system" | "cron" | "issuelog";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -1302,6 +1393,7 @@ export default function AdminPage() {
     { key: "articles", label: "Articles" },
     { key: "system", label: "System" },
     { key: "cron", label: "Cron Jobs" },
+    { key: "issuelog", label: "Issue Log" },
   ];
 
   const STAT_CARDS = [
@@ -1351,6 +1443,7 @@ export default function AdminPage() {
         {activeTab === "articles" && <ArticlesTab />}
         {activeTab === "system" && <SystemTab />}
         {activeTab === "cron" && <CronJobsTab />}
+        {activeTab === "issuelog" && <IssueLogTab />}
       </div>
     </div>
   );

@@ -187,7 +187,7 @@ export async function GET(req: NextRequest) {
       .eq("session_id", sessionId);
   }
 
-  return NextResponse.json({
+  const response = {
     success: true,
     processed: activeSignals.length,
     updated,
@@ -197,5 +197,14 @@ export async function GET(req: NextRequest) {
     slHit,
     noTarget,
     timestamp: new Date().toISOString(),
+  };
+
+  await supabase.from("issue_logs").insert({
+    level: "INFO",
+    source: "status-updater",
+    message: `Processed ${activeSignals.length} signals, updated ${updated}`,
+    details: { processed: activeSignals.length, updated, tp1Hit, tp2Hit, tp3Hit, slHit, noTarget },
   });
+
+  return NextResponse.json(response);
 }

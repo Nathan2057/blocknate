@@ -6,14 +6,14 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Top 30 liquid pairs pool
+// Top 25 liquid pairs available on Binance Futures (fapi)
 const PAIR_POOL = [
   "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
   "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT",
-  "MATICUSDT", "UNIUSDT", "ATOMUSDT", "LTCUSDT", "NEARUSDT",
+  "UNIUSDT", "ATOMUSDT", "LTCUSDT", "NEARUSDT",
   "APTUSDT", "ARBUSDT", "OPUSDT", "INJUSDT", "SEIUSDT",
-  "SUIUSDT", "TIAUSDT", "STXUSDT", "FETUSDT", "RNDRUSDT",
-  "AAVEUSDT", "MKRUSDT", "SNXUSDT", "CRVUSDT", "LDOUSDT",
+  "SUIUSDT", "TIAUSDT", "STXUSDT", "FETUSDT",
+  "AAVEUSDT", "MKRUSDT",
 ];
 
 function parseKlines(data: unknown[][]): OHLCV[] {
@@ -32,12 +32,8 @@ async function fetchCandles(
   interval = "4h",
   limit = 250
 ): Promise<OHLCV[]> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://blocknate.vercel.app";
-
   const endpoints = [
-    // Internal proxy first — avoids Vercel→Binance blocking
-    `${baseUrl}/api/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
-    // Binance Futures (different infra, often unblocked)
+    // Binance Futures (fapi) — all PAIR_POOL symbols exist here
     `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
     // Binance Spot mirrors
     `https://api1.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
@@ -48,20 +44,24 @@ async function fetchCandles(
   ];
 
   for (const url of endpoints) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
     try {
-      const host = new URL(url).hostname + new URL(url).pathname;
+      const host = new URL(url).hostname;
       console.log(`Trying ${symbol} via ${host}`);
       const res = await fetch(url, {
         cache: "no-store",
         headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-        signal: AbortSignal.timeout(10000),
+        signal: controller.signal,
       });
+      clearTimeout(timer);
       if (!res.ok) { console.log(`${host}: HTTP ${res.status}`); continue; }
       const data = await res.json();
       if (!Array.isArray(data) || data.length === 0) { console.log(`${host}: empty/invalid`); continue; }
-      console.log(`✅ ${symbol}: ${data.length} candles from ${new URL(url).hostname}`);
+      console.log(`✅ ${symbol}: ${data.length} candles from ${host}`);
       return parseKlines(data as unknown[][]);
     } catch (err) {
+      clearTimeout(timer);
       console.log(`${new URL(url).hostname} failed: ${String(err).slice(0, 80)}`);
       continue;
     }
