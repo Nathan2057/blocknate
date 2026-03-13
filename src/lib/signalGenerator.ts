@@ -48,7 +48,7 @@ function generateSessionId(): string {
   return `${now.toISOString().split("T")[0]}_slot${slot}`;
 }
 
-export async function generateSignalBatch(): Promise<{
+export async function generateSignalBatch(force = false): Promise<{
   success: boolean;
   sessionId: string;
   created: number;
@@ -56,27 +56,30 @@ export async function generateSignalBatch(): Promise<{
   errors: string[];
   message: string;
 }> {
-  const sessionId = generateSessionId();
+  const baseSessionId = generateSessionId();
+  const sessionId = force ? `${baseSessionId}_forced` : baseSessionId;
   const todayStr = new Date().toISOString().split("T")[0];
   const errors: string[] = [];
   const skipped: string[] = [];
 
-  // Check if session already exists and is active
-  const { data: existingSession } = await supabase
-    .from("signal_sessions")
-    .select("id, status")
-    .eq("session_id", sessionId)
-    .single();
+  // Check if session already exists and is active (skip when force=true)
+  if (!force) {
+    const { data: existingSession } = await supabase
+      .from("signal_sessions")
+      .select("id, status")
+      .eq("session_id", sessionId)
+      .single();
 
-  if (existingSession?.status === "ACTIVE") {
-    return {
-      success: false,
-      sessionId,
-      created: 0,
-      skipped: [],
-      errors: [],
-      message: `Session ${sessionId} already active`,
-    };
+    if (existingSession?.status === "ACTIVE") {
+      return {
+        success: false,
+        sessionId,
+        created: 0,
+        skipped: [],
+        errors: [],
+        message: `Session ${sessionId} already active`,
+      };
+    }
   }
 
   // Get pairs already used TODAY to avoid duplicates

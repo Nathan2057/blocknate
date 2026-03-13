@@ -10,8 +10,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const force = req.nextUrl.searchParams.get("force") === "true";
   const start = Date.now();
-  const result = await generateSignalBatch();
+  const result = await generateSignalBatch(force);
   const duration = ((Date.now() - start) / 1000).toFixed(1);
 
   return NextResponse.json({ ...result, duration: `${duration}s` });

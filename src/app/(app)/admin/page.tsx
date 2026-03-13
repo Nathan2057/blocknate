@@ -27,12 +27,13 @@ interface Profile {
 
 interface Signal {
   id: string;
-  coin: string;
-  signal_type: "LONG" | "SHORT";
+  pair: string;
+  symbol: string;
+  direction: "LONG" | "SHORT";
   status: SignalStatus;
   entry_price: number;
   tp1: number;
-  stop_loss: number;
+  sl: number;
   confidence: number;
   created_at: string;
 }
@@ -351,6 +352,341 @@ function ArticleModal({ article, onClose, onSaved }: { article: Article | null; 
   );
 }
 
+/* ─── Signal pair pool + helpers ─── */
+const PAIR_POOL = [
+  "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
+  "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT",
+  "MATICUSDT", "UNIUSDT", "ATOMUSDT", "LTCUSDT", "NEARUSDT",
+  "APTUSDT", "ARBUSDT", "OPUSDT", "INJUSDT", "SEIUSDT",
+  "SUIUSDT", "TIAUSDT", "STXUSDT", "FETUSDT", "RNDRUSDT",
+  "AAVEUSDT", "MKRUSDT", "SNXUSDT", "CRVUSDT", "LDOUSDT",
+];
+
+function fmtPrice(n: number): string {
+  if (!n) return "—";
+  if (n >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (n >= 1) return n.toFixed(4);
+  return n.toFixed(6);
+}
+
+/* ─── Add Signal Modal ─── */
+function AddSignalModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const [pair, setPair] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSugg, setShowSugg] = useState(false);
+  const [direction, setDirection] = useState<"LONG" | "SHORT" | null>(null);
+  const [entryPrice, setEntryPrice] = useState("");
+  const [priceFetched, setPriceFetched] = useState(false);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [tpMode, setTpMode] = useState<"auto" | "manual">("auto");
+  const [atr, setAtr] = useState<number | null>(null);
+  const [fetchingAtr, setFetchingAtr] = useState(false);
+  const [tp1, setTp1] = useState("");
+  const [tp2, setTp2] = useState("");
+  const [tp3, setTp3] = useState("");
+  const [sl, setSl] = useState("");
+  const [confidence, setConfidence] = useState(70);
+  const [leverage, setLeverage] = useState("1");
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState("");
+  const [formError, setFormError] = useState("");
+
+  function handlePairChange(val: string) {
+    const upper = val.toUpperCase();
+    setPair(upper);
+    if (upper.length >= 2) {
+      const matches = PAIR_POOL.filter((p) => p.includes(upper));
+      setSuggestions(matches.slice(0, 6));
+      setShowSugg(matches.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowSugg(false);
+    }
+  }
+
+  async function fetchLivePrice() {
+    let sym = pair.toUpperCase();
+    if (!sym.endsWith("USDT")) sym += "USDT";
+    setFetchingPrice(true); setFetchError("");
+    try {
+      const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${sym}`);
+      const data = await res.json();
+      if (data.price) {
+        const price = parseFloat(data.price);
+        setLivePrice(price);
+        setEntryPrice(String(price));
+        setPriceFetched(true);
+        setPair(sym);
+      } else {
+        setFetchError(`Pair "${sym}" not found on Binance`);
+      }
+    } catch { setFetchError("Failed to fetch price"); }
+    setFetchingPrice(false);
+  }
+
+  async function fetchAtr() {
+    let sym = pair.toUpperCase();
+    if (!sym.endsWith("USDT")) sym += "USDT";
+    setFetchingAtr(true); setFetchError("");
+    try {
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=4h&limit=20`);
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length < 15) { setFetchError("Not enough candle data"); setFetchingAtr(false); return; }
+      let atrSum = 0;
+      for (let i = 1; i < 15; i++) {
+        const high = parseFloat(data[i][2]);
+        const low = parseFloat(data[i][3]);
+        const prevClose = parseFloat(data[i - 1][4]);
+        const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+        atrSum += tr;
+      }
+      const atrVal = atrSum / 14;
+      setAtr(atrVal);
+      const price = parseFloat(entryPrice) || parseFloat(data[data.length - 1][4]);
+      const d = direction ?? "LONG";
+      if (d === "LONG") {
+        setTp1(String(parseFloat((price + atrVal * 1.0).toFixed(8))));
+        setTp2(String(parseFloat((price + atrVal * 2.0).toFixed(8))));
+        setTp3(String(parseFloat((price + atrVal * 3.5).toFixed(8))));
+        setSl(String(parseFloat((price - atrVal * 1.5).toFixed(8))));
+      } else {
+        setTp1(String(parseFloat((price - atrVal * 1.0).toFixed(8))));
+        setTp2(String(parseFloat((price - atrVal * 2.0).toFixed(8))));
+        setTp3(String(parseFloat((price - atrVal * 3.5).toFixed(8))));
+        setSl(String(parseFloat((price + atrVal * 1.5).toFixed(8))));
+      }
+    } catch { setFetchError("Failed to fetch candles"); }
+    setFetchingAtr(false);
+  }
+
+  function validate(): string | null {
+    let sym = pair.toUpperCase();
+    if (!sym.endsWith("USDT")) sym += "USDT";
+    if (sym.length < 5) return "Enter a trading pair (e.g. BTCUSDT)";
+    if (!direction) return "Select a direction";
+    const entry = parseFloat(entryPrice);
+    if (!entry || entry <= 0) return "Enter a valid entry price";
+    const t1 = parseFloat(tp1), t2 = parseFloat(tp2), t3 = parseFloat(tp3), s = parseFloat(sl);
+    if (!t1 || !t2 || !t3 || !s) return "Fill in all TP and SL values";
+    if (direction === "LONG") {
+      if (t1 <= entry) return "TP1 must be above entry for LONG";
+      if (t2 <= t1) return "TP2 must be above TP1";
+      if (t3 <= t2) return "TP3 must be above TP2";
+      if (s >= entry) return "SL must be below entry for LONG";
+    } else {
+      if (t1 >= entry) return "TP1 must be below entry for SHORT";
+      if (t2 >= t1) return "TP2 must be below TP1";
+      if (t3 >= t2) return "TP3 must be below TP2";
+      if (s <= entry) return "SL must be above entry for SHORT";
+    }
+    return null;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const err = validate();
+    if (err) { setFormError(err); return; }
+    setFormError(""); setLoading(true);
+    let sym = pair.toUpperCase();
+    if (!sym.endsWith("USDT")) sym += "USDT";
+    const symbol = sym.replace("USDT", "");
+    const entry = parseFloat(entryPrice);
+    const t1 = parseFloat(tp1), t2 = parseFloat(tp2), t3 = parseFloat(tp3), s = parseFloat(sl);
+    const manualSessionId = `manual_${Date.now()}`;
+    const sessionEnd = new Date(Date.now() + 4 * 60 * 60 * 1000);
+    const riskLevel = confidence >= 75 ? "LOW" : confidence >= 60 ? "MEDIUM" : "HIGH";
+    const { error: dbErr } = await supabase!.from("signals").insert({
+      pair: sym, symbol, direction: direction!,
+      timeframe: "4H", entry_price: entry, current_price: entry,
+      tp1: t1, tp2: t2, tp3: t3, sl: s,
+      confidence, leverage: parseInt(leverage),
+      risk_level: riskLevel, status: "ACTIVE",
+      analysis: notes || `Manual signal: ${direction} on ${sym}`,
+      reasons: notes ? [notes] : ["Manually added by admin"],
+      session_id: manualSessionId,
+      session_start: new Date().toISOString(),
+      session_end: sessionEnd.toISOString(),
+      hit_tp1: false, hit_tp2: false, hit_tp3: false, hit_sl: false,
+    });
+    setLoading(false);
+    if (dbErr) { setFormError(dbErr.message); return; }
+    onAdded();
+    onClose();
+  }
+
+  const confColor = confidence >= 65 ? "#00C896" : confidence >= 50 ? "#F59E0B" : "#FF3B5C";
+  const entryNum = parseFloat(entryPrice) || 0;
+  const t1Num = parseFloat(tp1) || 0;
+  const t2Num = parseFloat(tp2) || 0;
+  const t3Num = parseFloat(tp3) || 0;
+  const slNum = parseFloat(sl) || 0;
+  const previewOk = pair && direction && entryNum && t1Num && t2Num && t3Num && slNum;
+  const isLong = direction === "LONG";
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px 24px 40px", overflowY: "auto" }} onClick={onClose}>
+      <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, padding: 28, width: "100%", maxWidth: 560, marginTop: 20 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+          <div>
+            <h2 style={{ color: "#FFFFFF", fontWeight: 700, fontSize: "1rem", margin: 0 }}>Add Manual Signal</h2>
+            <p style={{ color: "#4A5568", fontSize: "0.72rem", margin: "4px 0 0" }}>Signal will appear immediately on live signals page</p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#4A5568", cursor: "pointer", fontSize: "1.2rem", padding: 0 }}>×</button>
+        </div>
+
+        {fetchError && <div style={{ background: "rgba(255,59,92,0.08)", border: "1px solid rgba(255,59,92,0.3)", borderRadius: 3, padding: "8px 12px", color: "#FF3B5C", fontSize: "0.78rem", margin: "12px 0" }}>{fetchError}</div>}
+
+        <form onSubmit={handleSubmit} style={{ marginTop: 20 }}>
+          {/* Pair */}
+          <div style={{ marginBottom: 14, position: "relative" }}>
+            <label style={labelStyle}>Trading Pair</label>
+            <input
+              type="text" value={pair}
+              onChange={(e) => handlePairChange(e.target.value)}
+              onBlur={() => setTimeout(() => setShowSugg(false), 150)}
+              placeholder="e.g. BTCUSDT"
+              style={inputStyle}
+            />
+            {showSugg && suggestions.length > 0 && (
+              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#0C1018", border: "1px solid #1C2236", borderRadius: 3, zIndex: 10, marginTop: 2 }}>
+                {suggestions.map((s) => (
+                  <div
+                    key={s}
+                    onMouseDown={() => { setPair(s); setSuggestions([]); setShowSugg(false); }}
+                    style={{ padding: "8px 12px", cursor: "pointer", color: "#E8ECF4", fontSize: "0.82rem", borderBottom: "1px solid #1C2236" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >{s}</div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Direction */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Direction</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" onClick={() => setDirection("LONG")} style={{ flex: 1, padding: 10, borderRadius: 3, border: `2px solid ${direction === "LONG" ? "#00C896" : "#1C2236"}`, background: direction === "LONG" ? "rgba(0,200,150,0.1)" : "transparent", color: direction === "LONG" ? "#00C896" : "#4A5568", fontWeight: 700, fontSize: "0.88rem", cursor: "pointer" }}>
+                LONG 📈
+              </button>
+              <button type="button" onClick={() => setDirection("SHORT")} style={{ flex: 1, padding: 10, borderRadius: 3, border: `2px solid ${direction === "SHORT" ? "#FF3B5C" : "#1C2236"}`, background: direction === "SHORT" ? "rgba(255,59,92,0.1)" : "transparent", color: direction === "SHORT" ? "#FF3B5C" : "#4A5568", fontWeight: 700, fontSize: "0.88rem", cursor: "pointer" }}>
+                SHORT 📉
+              </button>
+            </div>
+          </div>
+
+          {/* Fetch Price */}
+          <div style={{ marginBottom: 14 }}>
+            <button type="button" onClick={fetchLivePrice} disabled={!pair || fetchingPrice} style={{ background: "#0066FF", color: "#fff", border: "none", borderRadius: 3, padding: "8px 14px", fontSize: "0.8rem", fontWeight: 600, cursor: !pair || fetchingPrice ? "default" : "pointer", opacity: !pair || fetchingPrice ? 0.6 : 1 }}>
+              {fetchingPrice ? "Fetching..." : `🔍 Fetch Live Price${pair ? ` for ${pair.replace(/USDT$/, "") || pair}` : ""}`}
+            </button>
+            {livePrice !== null && <span style={{ marginLeft: 10, color: "#00C896", fontSize: "0.8rem", fontWeight: 600 }}>Live price: ${fmtPrice(livePrice)}</span>}
+          </div>
+
+          {/* Entry Price */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Entry Price</label>
+            <input type="number" step="any" value={entryPrice} onChange={(e) => { setEntryPrice(e.target.value); setPriceFetched(false); }} placeholder="0.00" style={inputStyle} />
+            {priceFetched && <div style={{ color: "#4A5568", fontSize: "0.65rem", marginTop: 3 }}>Fetched from Binance</div>}
+          </div>
+
+          {/* TP / SL */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>TP / SL</label>
+            <div style={{ display: "flex", marginBottom: 12 }}>
+              {(["auto", "manual"] as const).map((m) => (
+                <button key={m} type="button" onClick={() => setTpMode(m)} style={{ flex: 1, padding: "7px", border: `1px solid ${tpMode === m ? "#0066FF" : "#1C2236"}`, background: tpMode === m ? "rgba(0,102,255,0.1)" : "transparent", color: tpMode === m ? "#0066FF" : "#4A5568", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", borderRadius: m === "auto" ? "3px 0 0 3px" : "0 3px 3px 0" }}>
+                  {m === "auto" ? "Auto (ATR-based)" : "Manual"}
+                </button>
+              ))}
+            </div>
+            {tpMode === "auto" ? (
+              <div>
+                <button type="button" onClick={fetchAtr} disabled={!entryPrice || fetchingAtr} style={{ background: "none", border: "1px solid #0066FF", color: "#0066FF", borderRadius: 3, padding: "7px 14px", fontSize: "0.78rem", fontWeight: 600, cursor: !entryPrice || fetchingAtr ? "default" : "pointer", opacity: !entryPrice || fetchingAtr ? 0.6 : 1 }}>
+                  {fetchingAtr ? "Calculating..." : "Fetch ATR & Calculate"}
+                </button>
+                {atr !== null && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ color: "#8892A4", fontSize: "0.72rem", marginBottom: 8 }}>ATR (14): <span style={{ color: "#FFFFFF", fontWeight: 600 }}>${fmtPrice(atr)}</span></div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
+                      {([["TP1", tp1, "#00C896"], ["TP2", tp2, "#00C896"], ["TP3", tp3, "#00C896"], ["SL", sl, "#FF3B5C"]] as [string, string, string][]).map(([lbl, val, col]) => (
+                        <div key={lbl} style={{ background: "#080C14", border: "1px solid #1C2236", borderRadius: 3, padding: "6px 8px", textAlign: "center" }}>
+                          <div style={{ fontSize: "0.58rem", color: "#4A5568", marginBottom: 2 }}>{lbl}</div>
+                          <div style={{ fontSize: "0.72rem", color: col, fontWeight: 600 }}>${fmtPrice(parseFloat(val) || 0)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {([["TP1", tp1, setTp1, "#00C896"], ["TP2", tp2, setTp2, "#00C896"], ["TP3", tp3, setTp3, "#00C896"], ["SL", sl, setSl, "#FF3B5C"]] as [string, string, (v: string) => void, string][]).map(([lbl, val, setter, col]) => (
+                  <div key={lbl}>
+                    <label style={{ ...labelStyle, color: col }}>{lbl}</label>
+                    <input type="number" step="any" value={val} onChange={(e) => setter(e.target.value)} placeholder="0.00" style={{ ...inputStyle, borderColor: col + "40" }} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Confidence */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ ...labelStyle, display: "flex", justifyContent: "space-between" }}>
+              <span>Confidence %</span>
+              <span style={{ color: confColor, fontWeight: 700 }}>{confidence}%</span>
+            </label>
+            <input type="range" min={40} max={95} value={confidence} onChange={(e) => setConfidence(parseInt(e.target.value))} style={{ width: "100%", accentColor: confColor }} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.62rem", color: "#4A5568", marginTop: 2 }}>
+              <span>40%</span><span>95%</span>
+            </div>
+          </div>
+
+          {/* Leverage */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Leverage</label>
+            <select value={leverage} onChange={(e) => setLeverage(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+              {["1", "2", "3", "5", "10"].map((v) => <option key={v} value={v}>{v}x</option>)}
+            </select>
+          </div>
+
+          {/* Notes */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Analysis Note (optional)</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Why this signal? Key reasons..." rows={2} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
+          </div>
+
+          {/* Preview */}
+          {previewOk && (
+            <div style={{ marginBottom: 16, background: "#080C14", border: "1px solid #1C2236", borderLeft: `3px solid ${isLong ? "#00C896" : "#FF3B5C"}`, borderRadius: 4, padding: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontWeight: 700, color: "#FFFFFF", fontSize: "0.9rem" }}>{pair.replace("USDT", "")}/USDT</span>
+                <span style={{ fontSize: "0.65rem", fontWeight: 700, background: isLong ? "#00C896" : "#FF3B5C", color: "#fff", padding: "2px 8px", borderRadius: 3 }}>{direction}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: "0.75rem" }}>
+                <div style={{ color: "#8892A4" }}>Entry: <span style={{ color: "#FFFFFF" }}>${fmtPrice(entryNum)}</span></div>
+                <div style={{ color: "#8892A4" }}>SL: <span style={{ color: "#FF3B5C" }}>${fmtPrice(slNum)}</span></div>
+                <div style={{ color: "#8892A4" }}>TP1: <span style={{ color: "#00C896" }}>${fmtPrice(t1Num)}</span></div>
+                <div style={{ color: "#8892A4" }}>TP2: <span style={{ color: "#00C896" }}>${fmtPrice(t2Num)}</span></div>
+                <div style={{ color: "#8892A4" }}>TP3: <span style={{ color: "#00C896" }}>${fmtPrice(t3Num)}</span></div>
+                <div style={{ color: "#8892A4" }}>Conf: <span style={{ color: confColor }}>{confidence}%</span></div>
+              </div>
+            </div>
+          )}
+
+          {formError && <div style={{ background: "rgba(255,59,92,0.08)", border: "1px solid rgba(255,59,92,0.3)", borderRadius: 3, padding: "8px 12px", color: "#FF3B5C", fontSize: "0.78rem", marginBottom: 12 }}>{formError}</div>}
+          <button type="submit" disabled={loading} style={{ width: "100%", background: "#00C896", color: "#fff", border: "none", borderRadius: 3, padding: "12px 0", fontWeight: 700, fontSize: "0.9rem", cursor: loading ? "default" : "pointer", opacity: loading ? 0.8 : 1 }}>
+            {loading ? "Adding Signal..." : "Add Signal"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /* ─── USERS TAB ─── */
 function UsersTab({ viewerRole, currentUserId }: { viewerRole: UserRole; currentUserId: string }) {
   const [users, setUsers] = useState<Profile[]>([]);
@@ -471,27 +807,47 @@ function SignalsTab() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [pairFilter, setPairFilter] = useState("ALL");
-  const [actionMsg, setActionMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [generateMsg, setGenerateMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [updateMsg, setUpdateMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [forceGenerating, setForceGenerating] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchSignals = useCallback(() => {
-    supabase!.from("signals").select("id,coin,signal_type,status,entry_price,tp1,stop_loss,confidence,created_at")
+    supabase!.from("signals").select("id,pair,symbol,direction,status,entry_price,tp1,sl,confidence,created_at")
       .order("created_at", { ascending: false }).limit(50)
       .then(({ data }) => { setSignals((data as Signal[]) ?? []); setLoading(false); });
   }, []);
 
   useEffect(() => { fetchSignals(); }, [fetchSignals]);
 
-  async function runAction(url: string, setRunning: (v: boolean) => void) {
-    setRunning(true); setActionMsg(null);
+  async function runGenerate(force = false) {
+    const setter = force ? setForceGenerating : setGenerating;
+    setter(true); setGenerateMsg(null);
     try {
+      const url = `/api/generate-signals?secret=${API_SECRET}${force ? "&force=true" : ""}`;
       const res = await fetch(url);
       const json = await res.json().catch(() => ({}));
-      setActionMsg({ text: json.message ?? (res.ok ? "Success" : "Error"), ok: res.ok });
+      setGenerateMsg({ text: json.message ?? (res.ok ? "Success" : "Error"), ok: res.ok });
       if (res.ok) fetchSignals();
-    } catch { setActionMsg({ text: "Network error", ok: false }); }
-    setRunning(false);
+    } catch { setGenerateMsg({ text: "Network error", ok: false }); }
+    setter(false);
+  }
+
+  async function runUpdate() {
+    setUpdating(true); setUpdateMsg(null);
+    try {
+      const res = await fetch(`/api/update-signal-status?secret=${API_SECRET}`);
+      const json = await res.json().catch(() => ({}));
+      const tpTotal = (json.tp1Hit ?? 0) + (json.tp2Hit ?? 0) + (json.tp3Hit ?? 0);
+      const text = res.ok
+        ? `✅ Updated ${json.updated ?? 0} signals (TP: ${tpTotal}, SL: ${json.slHit ?? 0})`
+        : json.message ?? "Error";
+      setUpdateMsg({ text, ok: res.ok });
+      if (res.ok) fetchSignals();
+    } catch { setUpdateMsg({ text: "Network error", ok: false }); }
+    setUpdating(false);
   }
 
   async function deleteSignal(id: string) {
@@ -502,7 +858,10 @@ function SignalsTab() {
 
   const STATUSES = ["ALL", "ACTIVE", "TP1_HIT", "TP2_HIT", "TP3_HIT", "SL_HIT", "CLOSED", "CANCELLED"];
   const PAIRS = ["ALL", "BTC", "ETH", "SOL", "BNB", "XRP"];
-  const filtered = signals.filter((s) => (statusFilter === "ALL" || s.status === statusFilter) && (pairFilter === "ALL" || s.coin.toUpperCase().includes(pairFilter)));
+  const filtered = signals.filter((s) =>
+    (statusFilter === "ALL" || s.status === statusFilter) &&
+    (pairFilter === "ALL" || (s.symbol ?? s.pair ?? "").toUpperCase().includes(pairFilter))
+  );
   const closed = signals.filter((s) => ["TP1_HIT", "TP2_HIT", "TP3_HIT", "SL_HIT", "CLOSED"].includes(s.status));
   const wins = closed.filter((s) => s.status.includes("TP"));
   const winRate = closed.length > 0 ? ((wins.length / closed.length) * 100).toFixed(1) : "—";
@@ -515,11 +874,56 @@ function SignalsTab() {
     return { color: "#4A5568", bg: "#1C2236" };
   }
 
+  const spinnerStyle: React.CSSProperties = { width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTop: "2px solid #fff", borderRadius: "50%", display: "inline-block", animation: "spin 0.8s linear infinite" };
+
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "#4A5568" }}>Loading...</div>;
 
   return (
     <div>
-      <div style={{ padding: "16px 0 12px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      {/* ── Signal Controls Card ── */}
+      <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderTop: "3px solid #0066FF", borderRadius: 4, padding: 20, marginTop: 16, marginBottom: 14 }}>
+        <div style={{ color: "#FFFFFF", fontWeight: 700, fontSize: "0.88rem", marginBottom: 14 }}>Signal Controls</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <button disabled={generating} onClick={() => runGenerate(false)} style={{ background: "#0066FF", color: "#fff", border: "none", borderRadius: 3, padding: "9px 18px", fontSize: "0.82rem", fontWeight: 700, cursor: generating ? "default" : "pointer", opacity: generating ? 0.7 : 1, display: "flex", alignItems: "center", gap: 6 }}>
+            {generating ? <><span style={spinnerStyle} /> Generating...</> : "🔄 Generate New Batch"}
+          </button>
+          <button disabled={updating} onClick={runUpdate} style={{ background: "none", border: "1px solid #0066FF", color: "#0066FF", borderRadius: 3, padding: "9px 18px", fontSize: "0.82rem", fontWeight: 700, cursor: updating ? "default" : "pointer", opacity: updating ? 0.7 : 1, display: "flex", alignItems: "center", gap: 6 }}>
+            {updating ? <><span style={{ ...spinnerStyle, borderColor: "rgba(0,102,255,0.3)", borderTopColor: "#0066FF" }} /> Updating...</> : "📊 Update Signal Status"}
+          </button>
+          <button disabled={forceGenerating} onClick={() => runGenerate(true)} style={{ background: "none", border: "1px solid #F59E0B", color: "#F59E0B", borderRadius: 3, padding: "6px 14px", fontSize: "0.75rem", fontWeight: 700, cursor: forceGenerating ? "default" : "pointer", opacity: forceGenerating ? 0.7 : 1 }}>
+            {forceGenerating ? "Generating..." : "⚡ Force Generate"}
+          </button>
+        </div>
+        {generateMsg && (
+          <div style={{ padding: "7px 12px", background: generateMsg.ok ? "rgba(0,200,150,0.06)" : "rgba(255,59,92,0.06)", border: `1px solid ${generateMsg.ok ? "rgba(0,200,150,0.3)" : "rgba(255,59,92,0.3)"}`, borderRadius: 3, color: generateMsg.ok ? "#00C896" : "#FF3B5C", fontSize: "0.78rem", marginBottom: 6 }}>
+            {generateMsg.ok ? `✅ ${generateMsg.text}` : generateMsg.text}
+          </div>
+        )}
+        {updateMsg && (
+          <div style={{ padding: "7px 12px", background: updateMsg.ok ? "rgba(0,200,150,0.06)" : "rgba(255,59,92,0.06)", border: `1px solid ${updateMsg.ok ? "rgba(0,200,150,0.3)" : "rgba(255,59,92,0.3)"}`, borderRadius: 3, color: updateMsg.ok ? "#00C896" : "#FF3B5C", fontSize: "0.78rem", marginBottom: 6 }}>
+            {updateMsg.text}
+          </div>
+        )}
+        <div style={{ color: "#4A5568", fontSize: "0.7rem" }}>
+          ⚠️ Generate New Batch will skip if current session already has active signals. Use Force Generate to override.
+        </div>
+      </div>
+
+      {/* ── Add Manual Signal Card ── */}
+      <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderTop: "3px solid #00C896", borderRadius: 4, padding: 20, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ color: "#FFFFFF", fontWeight: 700, fontSize: "0.88rem", marginBottom: 4 }}>Add Manual Signal</div>
+            <div style={{ color: "#4A5568", fontSize: "0.72rem" }}>Bypass the engine and add a signal directly</div>
+          </div>
+          <button onClick={() => setShowAddModal(true)} style={{ background: "none", border: "1px solid #00C896", color: "#00C896", borderRadius: 3, padding: "8px 16px", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>
+            + Add Manual Signal
+          </button>
+        </div>
+      </div>
+
+      {/* ── Filters ── */}
+      <div style={{ padding: "4px 0 12px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         {STATUSES.map((s) => (
           <button key={s} onClick={() => setStatusFilter(s)} style={{ background: statusFilter === s ? "#0066FF" : "transparent", border: `1px solid ${statusFilter === s ? "#0066FF" : "#1C2236"}`, borderRadius: 3, padding: "4px 10px", color: statusFilter === s ? "#fff" : "#8892A4", fontSize: "0.7rem", fontWeight: 600, cursor: "pointer" }}>{s}</button>
         ))}
@@ -527,6 +931,8 @@ function SignalsTab() {
           {PAIRS.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
       </div>
+
+      {/* ── Signals Table ── */}
       <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, overflow: "hidden", marginBottom: 16 }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -540,11 +946,11 @@ function SignalsTab() {
                 const sc = sbadge(sig.status);
                 return (
                   <tr key={sig.id} onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                    <td style={{ ...tdStyle, color: "#FFFFFF", fontWeight: 700 }}>{sig.coin}</td>
-                    <td style={tdStyle}><Badge text={sig.signal_type} color={sig.signal_type === "LONG" ? "#00C896" : "#FF3B5C"} bg={sig.signal_type === "LONG" ? "rgba(0,200,150,0.1)" : "rgba(255,59,92,0.1)"} /></td>
-                    <td style={{ ...tdStyle, color: "#E8ECF4" }}>${sig.entry_price.toLocaleString("en-US", { maximumFractionDigits: 2 })}</td>
-                    <td style={{ ...tdStyle, color: "#00C896" }}>${sig.tp1.toLocaleString("en-US", { maximumFractionDigits: 2 })}</td>
-                    <td style={{ ...tdStyle, color: "#FF3B5C" }}>${sig.stop_loss.toLocaleString("en-US", { maximumFractionDigits: 2 })}</td>
+                    <td style={{ ...tdStyle, color: "#FFFFFF", fontWeight: 700 }}>{sig.symbol ?? sig.pair}</td>
+                    <td style={tdStyle}><Badge text={sig.direction} color={sig.direction === "LONG" ? "#00C896" : "#FF3B5C"} bg={sig.direction === "LONG" ? "rgba(0,200,150,0.1)" : "rgba(255,59,92,0.1)"} /></td>
+                    <td style={{ ...tdStyle, color: "#E8ECF4" }}>${sig.entry_price.toLocaleString("en-US", { maximumFractionDigits: 4 })}</td>
+                    <td style={{ ...tdStyle, color: "#00C896" }}>${sig.tp1.toLocaleString("en-US", { maximumFractionDigits: 4 })}</td>
+                    <td style={{ ...tdStyle, color: "#FF3B5C" }}>${sig.sl.toLocaleString("en-US", { maximumFractionDigits: 4 })}</td>
                     <td style={{ ...tdStyle, color: "#0066FF", fontWeight: 600 }}>{sig.confidence}%</td>
                     <td style={tdStyle}><Badge text={sig.status} color={sc.color} bg={sc.bg} /></td>
                     <td style={{ ...tdStyle, color: "#4A5568" }}>{fmtDate(sig.created_at)}</td>
@@ -556,27 +962,15 @@ function SignalsTab() {
           </table>
         </div>
       </div>
+
+      {/* ── Stats ── */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         {[{ label: "Win Rate", value: `${winRate}%`, color: "#00C896" }, { label: "Avg Confidence", value: `${avgConf}%`, color: "#0066FF" }, { label: "Total", value: signals.length, color: "#8892A4" }, { label: "Active", value: signals.filter((s) => s.status === "ACTIVE").length, color: "#F59E0B" }].map(({ label, value, color }) => (
           <StatCard key={label} label={label} value={value} color={color} />
         ))}
       </div>
-      <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, padding: 18 }}>
-        <div style={{ color: "#FFFFFF", fontWeight: 700, fontSize: "0.88rem", marginBottom: 12 }}>Manual Triggers</div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button disabled={generating} onClick={() => runAction(`/api/generate-signals?secret=${API_SECRET}`, setGenerating)} style={{ background: "none", border: "1px solid #0066FF", color: "#0066FF", borderRadius: 3, padding: "8px 16px", fontSize: "0.8rem", fontWeight: 600, cursor: generating ? "default" : "pointer", opacity: generating ? 0.7 : 1 }}>
-            {generating ? "Running..." : "🔄 Run Signal Engine"}
-          </button>
-          <button disabled={updating} onClick={() => runAction(`/api/update-signal-status?secret=${API_SECRET}`, setUpdating)} style={{ background: "none", border: "1px solid #0066FF", color: "#0066FF", borderRadius: 3, padding: "8px 16px", fontSize: "0.8rem", fontWeight: 600, cursor: updating ? "default" : "pointer", opacity: updating ? 0.7 : 1 }}>
-            {updating ? "Updating..." : "📊 Update Signal Status"}
-          </button>
-        </div>
-        {actionMsg && (
-          <div style={{ marginTop: 10, padding: "8px 12px", background: actionMsg.ok ? "rgba(0,200,150,0.06)" : "rgba(255,59,92,0.06)", border: `1px solid ${actionMsg.ok ? "rgba(0,200,150,0.3)" : "rgba(255,59,92,0.3)"}`, borderRadius: 3, color: actionMsg.ok ? "#00C896" : "#FF3B5C", fontSize: "0.78rem" }}>
-            {actionMsg.text}
-          </div>
-        )}
-      </div>
+
+      {showAddModal && <AddSignalModal onClose={() => setShowAddModal(false)} onAdded={fetchSignals} />}
     </div>
   );
 }
