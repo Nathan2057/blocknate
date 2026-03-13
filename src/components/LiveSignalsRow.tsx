@@ -5,34 +5,21 @@ import { supabase } from "@/lib/supabase";
 import { fmtPrice, riskColor } from "@/lib/utils";
 import { Zap } from "lucide-react";
 
-type SignalStatus =
-  | "ACTIVE"
-  | "TP1_HIT"
-  | "TP2_HIT"
-  | "TP3_HIT"
-  | "SL_HIT"
-  | "CLOSED"
-  | "CANCELLED";
-
 interface Signal {
   id: string;
-  coin: string;
-  signal_type: "LONG" | "SHORT";
-  status: SignalStatus;
+  pair: string;
+  symbol: string;
+  direction: "LONG" | "SHORT";
+  status: string;
   entry_price: number;
-  entry_low: number;
-  entry_high: number;
   tp1: number;
   tp2: number;
   tp3: number;
-  stop_loss: number;
+  sl: number;
   leverage: number;
   timeframe: string;
-  exchange: string;
-  risk_level: "LOW" | "MEDIUM" | "HIGH";
-  notes: string | null;
+  risk_level: string;
   confidence: number;
-  auto_generated: boolean;
   created_at: string;
 }
 
@@ -43,7 +30,7 @@ function confidenceColor(v: number) {
 }
 
 function SignalCard({ signal }: { signal: Signal }) {
-  const isLong = signal.signal_type === "LONG";
+  const isLong = signal.direction === "LONG";
   const borderColor = isLong ? "#00C896" : "#FF3B5C";
   const cc = confidenceColor(signal.confidence);
 
@@ -62,10 +49,10 @@ function SignalCard({ signal }: { signal: Signal }) {
         gap: 8,
       }}
     >
-      {/* Row 1: Coin + badge */}
+      {/* Coin + direction badge */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#FFFFFF" }}>
-          {signal.coin}
+          {signal.symbol}/USDT
         </span>
         <span
           style={{
@@ -77,11 +64,11 @@ function SignalCard({ signal }: { signal: Signal }) {
             borderRadius: 3,
           }}
         >
-          {signal.signal_type}
+          {signal.direction}
         </span>
       </div>
 
-      {/* Row 2: Entry */}
+      {/* Entry */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: "0.68rem", color: "#8892A4" }}>Entry</span>
         <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#FFFFFF" }}>
@@ -89,7 +76,7 @@ function SignalCard({ signal }: { signal: Signal }) {
         </span>
       </div>
 
-      {/* Row 3: TP levels */}
+      {/* TP levels */}
       <div style={{ display: "flex", gap: 6 }}>
         {[signal.tp1, signal.tp2, signal.tp3].map((tp, i) => (
           <div
@@ -111,48 +98,26 @@ function SignalCard({ signal }: { signal: Signal }) {
         ))}
       </div>
 
-      {/* Row 4: Stop Loss */}
+      {/* Stop Loss */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: "0.68rem", color: "#FF3B5C" }}>Stop Loss</span>
         <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#FF3B5C" }}>
-          {fmtPrice(signal.stop_loss)}
+          {fmtPrice(signal.sl)}
         </span>
       </div>
 
-      {/* Row 5: Confidence bar */}
+      {/* Confidence bar */}
       <div>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: 4,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
           <span style={{ fontSize: "0.63rem", color: "#8892A4" }}>Confidence</span>
-          <span style={{ fontSize: "0.63rem", fontWeight: 600, color: cc }}>
-            {signal.confidence}%
-          </span>
+          <span style={{ fontSize: "0.63rem", fontWeight: 600, color: cc }}>{signal.confidence}%</span>
         </div>
-        <div
-          style={{
-            height: 4,
-            backgroundColor: "#1C2236",
-            borderRadius: 2,
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              height: "100%",
-              width: `${signal.confidence}%`,
-              backgroundColor: cc,
-              borderRadius: 2,
-            }}
-          />
+        <div style={{ height: 4, backgroundColor: "#1C2236", borderRadius: 2, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${signal.confidence}%`, backgroundColor: cc, borderRadius: 2 }} />
         </div>
       </div>
 
-      {/* Row 6: Meta */}
+      {/* Meta */}
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <span
           style={{
@@ -195,7 +160,7 @@ function EmptyState() {
           No active signals
         </div>
         <div style={{ fontSize: "0.72rem", marginTop: 2 }}>
-          Monitoring market conditions for new opportunities
+          Signals refresh every 4 hours
         </div>
       </div>
     </div>
@@ -207,43 +172,24 @@ export default function LiveSignalsRow() {
   const [loading, setLoading] = useState(true);
 
   const fetchSignals = useCallback(async () => {
-    if (!supabase) {
-      console.warn("[LiveSignalsRow] Supabase not configured — check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local");
-      setLoading(false);
-      return;
-    }
-    const { data, error } = await supabase
+    if (!supabase) { setLoading(false); return; }
+    const { data } = await supabase
       .from("signals")
-      .select("*")
+      .select("id, pair, symbol, direction, status, entry_price, tp1, tp2, tp3, sl, leverage, timeframe, risk_level, confidence, created_at")
       .eq("status", "ACTIVE")
-      .order("created_at", { ascending: false });
-
-    console.log("[LiveSignalsRow] fetch result:", { data, error });
-    if (error) console.error("[LiveSignalsRow] Supabase error:", error);
-
-    setSignals(data ?? []);
+      .order("confidence", { ascending: false });
+    setSignals((data ?? []) as Signal[]);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchSignals();
-
     if (!supabase) return;
-
     const channel = supabase
-      .channel("signals-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "signals" },
-        () => fetchSignals()
-      )
-      .subscribe((status) => {
-        console.log("[LiveSignalsRow] realtime subscription status:", status);
-      });
-
-    return () => {
-      supabase?.removeChannel(channel);
-    };
+      .channel("live-signals-row")
+      .on("postgres_changes", { event: "*", schema: "public", table: "signals" }, fetchSignals)
+      .subscribe();
+    return () => { supabase?.removeChannel(channel); };
   }, [fetchSignals]);
 
   return (
@@ -272,28 +218,12 @@ export default function LiveSignalsRow() {
       {loading ? (
         <div style={{ display: "flex", gap: 12 }}>
           {[1, 2, 3].map((n) => (
-            <div
-              key={n}
-              className="skeleton"
-              style={{ width: 260, height: 180, flexShrink: 0, borderRadius: 4 }}
-            />
+            <div key={n} className="skeleton" style={{ width: 260, height: 180, flexShrink: 0, borderRadius: 4 }} />
           ))}
         </div>
       ) : (
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            overflowX: "auto",
-            paddingBottom: 8,
-            scrollbarWidth: "thin",
-          }}
-        >
-          {signals.length > 0 ? (
-            signals.map((s) => <SignalCard key={s.id} signal={s} />)
-          ) : (
-            <EmptyState />
-          )}
+        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "thin" }}>
+          {signals.length > 0 ? signals.map((s) => <SignalCard key={s.id} signal={s} />) : <EmptyState />}
         </div>
       )}
     </div>

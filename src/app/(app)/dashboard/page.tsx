@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import StatsBar from "@/components/StatsBar";
 import FearGreedGauge from "@/components/FearGreedGauge";
 import TradingChart from "@/components/TradingChart";
@@ -8,6 +9,13 @@ import LiveSignalsRow from "@/components/LiveSignalsRow";
 import Top5Coins from "@/components/Top5Coins";
 import MarketsTable from "@/components/MarketsTable";
 import MarketMovers from "@/components/MarketMovers";
+
+interface SignalPair {
+  pair: string;
+  symbol: string;
+  direction: "LONG" | "SHORT";
+  confidence: number;
+}
 
 export default function DashboardPage() {
   const [marketData, setMarketData] = useState<
@@ -22,8 +30,33 @@ export default function DashboardPage() {
     }[]
   >([]);
 
+  const [signalPairs, setSignalPairs] = useState<SignalPair[]>([]);
+
   const handleDataLoaded = useCallback((data: typeof marketData) => {
     setMarketData(data);
+  }, []);
+
+  useEffect(() => {
+    async function loadSignalPairs() {
+      const { data } = await supabase!
+        .from("signals")
+        .select("pair, symbol, direction, confidence")
+        .eq("status", "ACTIVE")
+        .order("confidence", { ascending: false })
+        .limit(5);
+
+      if (data && data.length > 0) {
+        setSignalPairs(
+          data.map((s: { pair: string; symbol: string; direction: "LONG" | "SHORT"; confidence: number }) => ({
+            pair: s.pair,
+            symbol: s.symbol,
+            direction: s.direction,
+            confidence: s.confidence,
+          }))
+        );
+      }
+    }
+    loadSignalPairs();
   }, []);
 
   return (
@@ -42,7 +75,7 @@ export default function DashboardPage() {
         }}
       >
         <FearGreedGauge />
-        <TradingChart />
+        <TradingChart pairs={signalPairs} />
       </div>
 
       {/* ROW 3: Live Signals */}

@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { fetchBinancePrice } from "@/lib/marketData";
+
+export const runtime = "nodejs";
 
 interface SignalRow {
   id: string;
-  coin: string;
-  signal_type: "LONG" | "SHORT";
+  pair: string;
+  direction: "LONG" | "SHORT";
   status: string;
   entry_price: number;
   tp1: number;
   tp2: number;
   tp3: number;
-  stop_loss: number;
+  sl: number;
   leverage: number;
-  pnl: number | null;
+  pnl_pct: number | null;
+  session_id: string | null;
+  session_end: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -27,89 +30,172 @@ export async function GET(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const { data: signals, error } = await supabase
+  const { data: activeSignals } = await supabase
     .from("signals")
     .select("*")
-    .in("status", ["ACTIVE", "TP1_HIT", "TP2_HIT"]);
+    .eq("status", "ACTIVE");
 
-  if (error || !signals) {
-    return NextResponse.json({ error: "Failed to fetch signals" });
+  if (!activeSignals?.length) {
+    return NextResponse.json({ message: "No active signals", processed: 0 });
   }
 
-  const updates: Array<{
-    coin: string;
-    from: string;
-    to: string;
-    price: number;
-    pnl: number;
-  }> = [];
+  let tp1Hit = 0, tp2Hit = 0, tp3Hit = 0, slHit = 0, noTarget = 0, updated = 0;
 
-  for (const signal of signals as SignalRow[]) {
+  for (const signal of activeSignals as SignalRow[]) {
     try {
-      const price = await fetchBinancePrice(signal.coin);
-      let newStatus = signal.status;
-      let pnl = signal.pnl ?? 0;
+      const res = await fetch(
+        `https://api.binance.com/api/v3/ticker/price?symbol=${signal.pair}`,
+        { cache: "no-store" }
+      );
+      const data = await res.json();
+      const price = parseFloat(data.price);
+      if (!price || isNaN(price)) continue;
 
-      if (signal.signal_type === "LONG") {
+      const now = new Date();
+      const sessionEnd = signal.session_end ? new Date(signal.session_end) : null;
+      const isExpired = sessionEnd && now > sessionEnd;
+
+      let newStatus = "ACTIVE";
+      let pnlPct = 0;
+      const updateData: Record<string, unknown> = { current_price: price };
+
+      if (signal.direction === "LONG") {
         if (price >= signal.tp3) {
           newStatus = "TP3_HIT";
-          pnl = ((signal.tp3 - signal.entry_price) / signal.entry_price) * 100 * signal.leverage;
+          pnlPct = ((signal.tp3 - signal.entry_price) / signal.entry_price) * 100 * signal.leverage;
+          updateData.hit_tp1 = true; updateData.hit_tp2 = true; updateData.hit_tp3 = true;
+          tp3Hit++;
         } else if (price >= signal.tp2) {
           newStatus = "TP2_HIT";
-          pnl = ((signal.tp2 - signal.entry_price) / signal.entry_price) * 100 * signal.leverage;
+          pnlPct = ((signal.tp2 - signal.entry_price) / signal.entry_price) * 100 * signal.leverage;
+          updateData.hit_tp1 = true; updateData.hit_tp2 = true;
+          tp2Hit++;
         } else if (price >= signal.tp1) {
           newStatus = "TP1_HIT";
-          pnl = ((signal.tp1 - signal.entry_price) / signal.entry_price) * 100 * signal.leverage;
-        } else if (price <= signal.stop_loss) {
+          pnlPct = ((signal.tp1 - signal.entry_price) / signal.entry_price) * 100 * signal.leverage;
+          updateData.hit_tp1 = true;
+          tp1Hit++;
+        } else if (price <= signal.sl) {
           newStatus = "SL_HIT";
-          pnl = ((signal.stop_loss - signal.entry_price) / signal.entry_price) * 100 * signal.leverage;
+          pnlPct = ((signal.sl - signal.entry_price) / signal.entry_price) * 100 * signal.leverage;
+          updateData.hit_sl = true;
+          slHit++;
         }
       } else {
         // SHORT
         if (price <= signal.tp3) {
           newStatus = "TP3_HIT";
-          pnl = ((signal.entry_price - signal.tp3) / signal.entry_price) * 100 * signal.leverage;
+          pnlPct = ((signal.entry_price - signal.tp3) / signal.entry_price) * 100 * signal.leverage;
+          updateData.hit_tp1 = true; updateData.hit_tp2 = true; updateData.hit_tp3 = true;
+          tp3Hit++;
         } else if (price <= signal.tp2) {
           newStatus = "TP2_HIT";
-          pnl = ((signal.entry_price - signal.tp2) / signal.entry_price) * 100 * signal.leverage;
+          pnlPct = ((signal.entry_price - signal.tp2) / signal.entry_price) * 100 * signal.leverage;
+          updateData.hit_tp1 = true; updateData.hit_tp2 = true;
+          tp2Hit++;
         } else if (price <= signal.tp1) {
           newStatus = "TP1_HIT";
-          pnl = ((signal.entry_price - signal.tp1) / signal.entry_price) * 100 * signal.leverage;
-        } else if (price >= signal.stop_loss) {
+          pnlPct = ((signal.entry_price - signal.tp1) / signal.entry_price) * 100 * signal.leverage;
+          updateData.hit_tp1 = true;
+          tp1Hit++;
+        } else if (price >= signal.sl) {
           newStatus = "SL_HIT";
-          pnl = ((signal.entry_price - signal.stop_loss) / signal.entry_price) * 100 * signal.leverage;
+          pnlPct = ((signal.entry_price - signal.sl) / signal.entry_price) * 100 * signal.leverage;
+          updateData.hit_sl = true;
+          slHit++;
         }
       }
 
-      if (newStatus !== signal.status) {
-        await supabase
-          .from("signals")
-          .update({
-            status: newStatus,
-            pnl: parseFloat(pnl.toFixed(2)),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", signal.id);
-
-        updates.push({
-          coin: signal.coin,
-          from: signal.status,
-          to: newStatus,
-          price,
-          pnl: parseFloat(pnl.toFixed(2)),
-        });
+      // Session expired with no TP/SL hit
+      if (newStatus === "ACTIVE" && isExpired) {
+        newStatus = "NO_TARGET";
+        pnlPct = ((price - signal.entry_price) / signal.entry_price) * 100;
+        if (signal.direction === "SHORT") pnlPct = -pnlPct;
+        noTarget++;
       }
 
-      await new Promise((r) => setTimeout(r, 200));
+      if (newStatus !== "ACTIVE") {
+        updateData.status = newStatus;
+        updateData.pnl_pct = parseFloat(pnlPct.toFixed(2));
+        updateData.exit_price = price;
+        updateData.closed_at = now.toISOString();
+        updated++;
+      }
+
+      await supabase.from("signals").update(updateData).eq("id", signal.id);
+      await new Promise((r) => setTimeout(r, 100));
     } catch (err) {
-      console.error(`Failed to update ${signal.coin}:`, err);
+      console.error(`Error updating ${signal.pair}:`, err);
     }
   }
 
+  // Update session summaries
+  const sessionIds = Array.from(
+    new Set(
+      (activeSignals as SignalRow[])
+        .map((s) => s.session_id)
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  for (const sessionId of sessionIds) {
+    const { data: sessionSignals } = await supabase
+      .from("signals")
+      .select("status, pnl_pct")
+      .eq("session_id", sessionId);
+
+    if (!sessionSignals) continue;
+
+    const closed = sessionSignals.filter(
+      (s: { status: string }) => s.status !== "ACTIVE"
+    );
+    const wins = closed.filter((s: { status: string }) =>
+      ["TP1_HIT", "TP2_HIT", "TP3_HIT"].includes(s.status)
+    );
+    const allClosed = closed.length === sessionSignals.length;
+    const avgPnl =
+      closed.length > 0
+        ? closed.reduce(
+            (a: number, b: { pnl_pct: number | null }) => a + (b.pnl_pct ?? 0),
+            0
+          ) / closed.length
+        : 0;
+
+    await supabase
+      .from("signal_sessions")
+      .update({
+        tp1_hit: sessionSignals.filter(
+          (s: { status: string }) => s.status === "TP1_HIT"
+        ).length,
+        tp2_hit: sessionSignals.filter(
+          (s: { status: string }) => s.status === "TP2_HIT"
+        ).length,
+        tp3_hit: sessionSignals.filter(
+          (s: { status: string }) => s.status === "TP3_HIT"
+        ).length,
+        sl_hit: sessionSignals.filter(
+          (s: { status: string }) => s.status === "SL_HIT"
+        ).length,
+        no_target: sessionSignals.filter(
+          (s: { status: string }) => s.status === "NO_TARGET"
+        ).length,
+        win_rate:
+          closed.length > 0 ? (wins.length / closed.length) * 100 : 0,
+        avg_pnl: parseFloat(avgPnl.toFixed(2)),
+        status: allClosed ? "CLOSED" : "ACTIVE",
+      })
+      .eq("session_id", sessionId);
+  }
+
   return NextResponse.json({
-    checked: signals.length,
-    updated: updates.length,
-    updates,
+    success: true,
+    processed: activeSignals.length,
+    updated,
+    tp1Hit,
+    tp2Hit,
+    tp3Hit,
+    slHit,
+    noTarget,
     timestamp: new Date().toISOString(),
   });
 }
