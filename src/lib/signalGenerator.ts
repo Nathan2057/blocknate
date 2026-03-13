@@ -16,37 +16,59 @@ const PAIR_POOL = [
   "AAVEUSDT", "MKRUSDT", "SNXUSDT", "CRVUSDT", "LDOUSDT",
 ];
 
+function parseKlines(data: unknown[][]): OHLCV[] {
+  return data.map((k) => ({
+    timestamp: Number(k[0]),
+    open: parseFloat(k[1] as string),
+    high: parseFloat(k[2] as string),
+    low: parseFloat(k[3] as string),
+    close: parseFloat(k[4] as string),
+    volume: parseFloat(k[5] as string),
+  }));
+}
+
 async function fetchCandles(
   symbol: string,
   interval = "4h",
   limit = 250
 ): Promise<OHLCV[]> {
-  try {
-    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-    console.log(`Fetching candles: ${symbol}`);
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) {
-      console.error(`Binance error for ${symbol}: ${res.status} ${res.statusText}`);
-      return [];
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://blocknate1.vercel.app";
+
+  const endpoints = [
+    // Internal proxy first — avoids Vercel→Binance blocking
+    `${baseUrl}/api/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+    // Binance Futures (different infra, often unblocked)
+    `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+    // Binance Spot mirrors
+    `https://api1.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+    `https://api2.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+    `https://api3.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+    // Binance Spot original
+    `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+  ];
+
+  for (const url of endpoints) {
+    try {
+      const host = new URL(url).hostname + new URL(url).pathname;
+      console.log(`Trying ${symbol} via ${host}`);
+      const res = await fetch(url, {
+        cache: "no-store",
+        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) { console.log(`${host}: HTTP ${res.status}`); continue; }
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) { console.log(`${host}: empty/invalid`); continue; }
+      console.log(`✅ ${symbol}: ${data.length} candles from ${new URL(url).hostname}`);
+      return parseKlines(data as unknown[][]);
+    } catch (err) {
+      console.log(`${new URL(url).hostname} failed: ${String(err).slice(0, 80)}`);
+      continue;
     }
-    const data = await res.json();
-    if (!Array.isArray(data)) {
-      console.error(`Invalid response for ${symbol}:`, typeof data);
-      return [];
-    }
-    console.log(`Got ${data.length} candles for ${symbol}`);
-    return data.map((k: unknown[]) => ({
-      timestamp: k[0] as number,
-      open: parseFloat(k[1] as string),
-      high: parseFloat(k[2] as string),
-      low: parseFloat(k[3] as string),
-      close: parseFloat(k[4] as string),
-      volume: parseFloat(k[5] as string),
-    }));
-  } catch (err) {
-    console.error(`fetchCandles error for ${symbol}:`, err);
-    return [];
   }
+
+  console.error(`❌ All endpoints failed for ${symbol}`);
+  return [];
 }
 
 function generateSessionId(): string {
