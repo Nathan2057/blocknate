@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Signal, SignalSession, timeAgo, formatSessionId } from "@/lib/signalUtils";
 
@@ -263,9 +263,9 @@ export default function PerformancePage() {
                     </thead>
                     <tbody>
                       {sessions.map((s) => (
-                        <>
+                        <React.Fragment key={s.id}>
                           <tr
-                            key={s.id}
+
                             onClick={() => setExpandedSession(expandedSession === s.session_id ? null : s.session_id)}
                             style={{
                               borderBottom: "1px solid #1C2236",
@@ -317,13 +317,13 @@ export default function PerformancePage() {
                           </tr>
                           {/* Expanded session signals */}
                           {expandedSession === s.session_id && (
-                            <tr key={`${s.id}-exp`}>
+                            <tr>
                               <td colSpan={10} style={{ padding: "0 0 8px", background: "rgba(0,0,0,0.2)" }}>
                                 <SessionSignals sessionId={s.session_id} />
                               </td>
                             </tr>
                           )}
-                        </>
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -458,6 +458,7 @@ export default function PerformancePage() {
 
 function SessionSignals({ sessionId }: { sessionId: string }) {
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     supabase!
@@ -465,11 +466,14 @@ function SessionSignals({ sessionId }: { sessionId: string }) {
       .select("*")
       .eq("session_id", sessionId)
       .order("confidence", { ascending: false })
-      .then(({ data }) => setSignals((data ?? []) as Signal[]));
+      .then(({ data }) => { setSignals((data ?? []) as Signal[]); setLoaded(true); });
   }, [sessionId]);
 
-  if (signals.length === 0) {
+  if (!loaded) {
     return <div style={{ padding: "12px 16px", color: "#4A5568", fontSize: "0.75rem" }}>Loading...</div>;
+  }
+  if (signals.length === 0) {
+    return <div style={{ padding: "12px 16px", color: "#4A5568", fontSize: "0.75rem" }}>No signals found for this session.</div>;
   }
 
   return (

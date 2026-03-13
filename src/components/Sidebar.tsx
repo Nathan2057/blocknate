@@ -106,12 +106,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     const checkRole = async () => {
       const { data: { user } } = await supabase!.auth.getUser();
       if (!user) return;
-      const { data: profile, error } = await supabase!
+      const { data: profile } = await supabase!
         .from("profiles")
         .select("role")
         .eq("id", user.id)
         .single();
-      console.log("Sidebar role check:", profile, error);
       if (profile?.role === "admin" || profile?.role === "super_admin") {
         setIsAdmin(true);
       }

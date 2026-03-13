@@ -896,7 +896,7 @@ function SignalsTab() {
             {forceGenerating ? "Generating..." : "⚡ Force Generate"}
           </button>
         </div>
-        {(generating || forceGenerating) && generateProgress.length > 0 && (
+        {generateProgress.length > 0 && (
           <div style={{ background: "#080C14", border: "1px solid #1C2236", borderRadius: 3, padding: 12, marginBottom: 6, maxHeight: 150, overflowY: "auto", fontFamily: "monospace", fontSize: "0.72rem" }}>
             {generateProgress.map((msg, i) => (
               <div key={i} style={{ color: msg.includes("✅") ? "#00C896" : msg.includes("❌") ? "#FF3B5C" : "#8892A4", marginBottom: 2 }}>{msg}</div>
@@ -1330,13 +1330,12 @@ export default function AdminPage() {
       const { data: { user } } = await supabase!.auth.getUser();
       if (!user) { router.push("/auth"); return; }
 
-      const { data: profile, error } = await supabase!
+      const { data: profile } = await supabase!
         .from("profiles")
         .select("role, email")
         .eq("id", user.id)
         .single();
 
-      console.log("Admin check:", user.email, profile, error);
 
       if (!profile) {
         await supabase!.from("profiles").upsert({

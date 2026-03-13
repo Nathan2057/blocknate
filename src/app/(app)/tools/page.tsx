@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function ToolsPage() {
-  return <div style={{ color: "white", padding: 40 }}>Tools</div>;
+  redirect("/tools/fear-greed");
 }
